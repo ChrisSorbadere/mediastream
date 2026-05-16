@@ -197,6 +197,7 @@
     <button class="control-btn icon-only" onclick="seekBy(10)" title="+10 secondes">⏩</button>
     <button class="control-btn icon-only" onclick="playNext()" title="Suivant">⏭</button>
     <div class="control-spacer"></div>
+    <button class="control-btn icon-only" id="btn-audio-only" onclick="toggleAudioOnly()" title="Audio seul (continue en arrière-plan)" style="display:none;">🎧</button>
     <button class="control-btn icon-only" id="btn-shuffle" onclick="toggleShuffle()" title="Lecture aléatoire">🔀</button>
     <button class="control-btn icon-only" id="btn-loop" onclick="toggleLoop()" title="Boucle">🔁</button>
     <div class="control-spacer"></div>
@@ -287,6 +288,7 @@ let modalMode = '';
 let modalContext = null;
 let shuffleMode = false;
 let loopMode = false; // false | 'one' | 'all'
+let audioOnlyMode = false; // mode "audio seul" persistant pour les vidéos
 let expandedFolders = new Set(); // dossiers dépliés
 
 // ═══════════════════════════════════════════
@@ -688,9 +690,10 @@ function playEpisode(ep, el) {
   if (el) { el.classList.add('playing'); activeEpisodeEl = el; }
   activeEpisode = ep;
 
-  // Choix du lecteur selon le type
+  // Choix du lecteur selon le type ET le mode audio-seul
   const isVideo = ep.type === 'video';
-  if (isVideo) {
+  const useVideoPlayer = isVideo && !audioOnlyMode;
+  if (useVideoPlayer) {
     audio.pause(); audio.style.display = 'none';
     video.style.display = 'block';
     activeMedia = video;
@@ -705,7 +708,12 @@ function playEpisode(ep, el) {
 
   document.getElementById('player-title').textContent = ep.title;
   document.getElementById('player-sub').textContent = ep.feed || '';
-  document.getElementById('player-art').textContent = isVideo ? '🎬' : (ep.type === 'drive' ? '☁' : '🎙');
+  document.getElementById('player-art').textContent = (isVideo && audioOnlyMode) ? '🎧' : (isVideo ? '🎬' : (ep.type === 'drive' ? '☁' : '🎙'));
+
+  // Bouton "Audio seul" visible uniquement pour les vidéos
+  const btnAO = document.getElementById('btn-audio-only');
+  btnAO.style.display = isVideo ? 'flex' : 'none';
+  btnAO.classList.toggle('active', isVideo && audioOnlyMode);
 
   addToHistory(ep);
 
@@ -831,6 +839,33 @@ function toggleLoop() {
   btn.classList.toggle('active', !!loopMode);
   btn.textContent = loopMode === 'one' ? '🔂' : '🔁';
   btn.title = loopMode === 'one' ? 'Boucle épisode' : (loopMode === 'all' ? 'Boucle liste' : 'Boucle off');
+}
+
+function toggleAudioOnly() {
+  if (!activeEpisode) return;
+  audioOnlyMode = !audioOnlyMode;
+  const btn = document.getElementById('btn-audio-only');
+  btn.classList.toggle('active', audioOnlyMode);
+  btn.title = audioOnlyMode ? 'Mode audio activé — clic pour repasser en vidéo' : 'Audio seul (continue en arrière-plan)';
+
+  // Bascule le lecteur en cours sans interrompre la lecture
+  const isVideo = activeEpisode.type === 'video';
+  if (!isVideo) return; // mode sans effet sur un podcast audio
+
+  const fromMedia = activeMedia;
+  const toMedia = (fromMedia === video) ? audio : video;
+  const time = fromMedia.currentTime;
+  const wasPlaying = !fromMedia.paused;
+  fromMedia.pause();
+  fromMedia.style.display = 'none';
+  toMedia.style.display = 'block';
+  toMedia.src = activeEpisode.isDrive ? activeEpisode.url : (PROXY + encodeURIComponent(activeEpisode.url));
+  activeMedia = toMedia;
+  document.getElementById('player-art').textContent = audioOnlyMode ? '🎧' : '🎬';
+  toMedia.addEventListener('loadedmetadata', () => {
+    toMedia.currentTime = time;
+    if (wasPlaying) toMedia.play().catch(()=>{});
+  }, { once: true });
 }
 
 // ═══════════════════════════════════════════
