@@ -189,7 +189,7 @@
     <div class="player-status idle" id="player-status">IDLE</div>
   </div>
   <audio id="audio-player" controls preload="metadata"></audio>
-  <video id="video-player" controls preload="metadata" style="display:none;width:100%;max-height:240px;border-radius:6px;background:#000;margin-top:4px;"></video>
+  <video id="video-player" controls preload="metadata" playsinline webkit-playsinline style="display:none;width:100%;max-height:240px;border-radius:6px;background:#000;margin-top:4px;"></video>
   <div class="control-bar">
     <button class="control-btn icon-only" onclick="playPrevious()" title="Précédent">⏮</button>
     <button class="control-btn icon-only" onclick="seekBy(-10)" title="-10 secondes">⏪</button>
@@ -201,7 +201,6 @@
     <button class="control-btn icon-only" id="btn-shuffle" onclick="toggleShuffle()" title="Lecture aléatoire">🔀</button>
     <button class="control-btn icon-only" id="btn-loop" onclick="toggleLoop()" title="Boucle">🔁</button>
     <div class="control-spacer"></div>
-    <button class="speed-btn" onclick="setSpeed(0.75)">×0.75</button>
     <button class="speed-btn active" onclick="setSpeed(1)">×1</button>
     <button class="speed-btn" onclick="setSpeed(1.25)">×1.25</button>
     <button class="speed-btn" onclick="setSpeed(1.5)">×1.5</button>
@@ -690,12 +689,22 @@ function playEpisode(ep, el) {
   if (el) { el.classList.add('playing'); activeEpisodeEl = el; }
   activeEpisode = ep;
 
-  // Choix du lecteur selon le type ET le mode audio-seul
+  // Choix du lecteur : <video> pour les vidéos (visible ou caché), <audio> pour les podcasts
   const isVideo = ep.type === 'video';
-  const useVideoPlayer = isVideo && !audioOnlyMode;
-  if (useVideoPlayer) {
+  if (isVideo) {
     audio.pause(); audio.style.display = 'none';
     video.style.display = 'block';
+    // Mode audio-seul : on garde l'élément <video> actif mais on le rend invisible
+    // (Chrome continue mieux la lecture en arrière-plan avec un élément <video> qu'avec <audio> chargé d'un .mp4)
+    if (audioOnlyMode) {
+      video.style.height = '0';
+      video.style.opacity = '0';
+      video.style.pointerEvents = 'none';
+    } else {
+      video.style.height = '';
+      video.style.opacity = '';
+      video.style.pointerEvents = '';
+    }
     activeMedia = video;
   } else {
     video.pause(); video.style.display = 'none';
@@ -848,24 +857,22 @@ function toggleAudioOnly() {
   btn.classList.toggle('active', audioOnlyMode);
   btn.title = audioOnlyMode ? 'Mode audio activé — clic pour repasser en vidéo' : 'Audio seul (continue en arrière-plan)';
 
-  // Bascule le lecteur en cours sans interrompre la lecture
   const isVideo = activeEpisode.type === 'video';
-  if (!isVideo) return; // mode sans effet sur un podcast audio
+  if (!isVideo) return;
 
-  const fromMedia = activeMedia;
-  const toMedia = (fromMedia === video) ? audio : video;
-  const time = fromMedia.currentTime;
-  const wasPlaying = !fromMedia.paused;
-  fromMedia.pause();
-  fromMedia.style.display = 'none';
-  toMedia.style.display = 'block';
-  toMedia.src = activeEpisode.isDrive ? activeEpisode.url : (PROXY + encodeURIComponent(activeEpisode.url));
-  activeMedia = toMedia;
-  document.getElementById('player-art').textContent = audioOnlyMode ? '🎧' : '🎬';
-  toMedia.addEventListener('loadedmetadata', () => {
-    toMedia.currentTime = time;
-    if (wasPlaying) toMedia.play().catch(()=>{});
-  }, { once: true });
+  // On garde l'élément <video> dans tous les cas (Chrome continue mieux en arrière-plan ainsi).
+  // En mode audio-seul on rend juste l'élément invisible mais toujours actif.
+  if (audioOnlyMode) {
+    video.style.height = '0';
+    video.style.opacity = '0';
+    video.style.pointerEvents = 'none';
+    document.getElementById('player-art').textContent = '🎧';
+  } else {
+    video.style.height = '';
+    video.style.opacity = '';
+    video.style.pointerEvents = '';
+    document.getElementById('player-art').textContent = '🎬';
+  }
 }
 
 // ═══════════════════════════════════════════
