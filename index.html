@@ -263,7 +263,10 @@ const DEFAULT_FOLDERS = [
     ]
   },
   {
-    id: 'spiritualite', name: 'Spiritualité', icon: '✨', feeds: []
+    id: 'spiritualite', name: 'Spiritualité', icon: '✨',
+    feeds: [
+      { name: "Arcana (Ludovic Richer)", url: 'https://feed.ausha.co/B4O4Ltpnk3ZM' },
+    ]
   },
   {
     id: 'litterature', name: 'Littérature', icon: '📚', feeds: []
@@ -287,6 +290,7 @@ let modalMode = '';
 let modalContext = null;
 let shuffleMode = false;
 let loopMode = false; // false | 'one' | 'all'
+let expandedFolders = new Set(); // dossiers dépliés
 
 // ═══════════════════════════════════════════
 // PERSISTANCE
@@ -298,6 +302,18 @@ function loadData() {
       const data = JSON.parse(saved);
       folders = data.folders || JSON.parse(JSON.stringify(DEFAULT_FOLDERS));
       driveFolders = data.driveFolders || JSON.parse(JSON.stringify(DEFAULT_DRIVE_FOLDERS));
+      // Migration : ajoute les nouveaux podcasts par défaut si absents
+      let migrated = false;
+      DEFAULT_FOLDERS.forEach(def => {
+        const existing = folders.find(f => f.id === def.id);
+        if (!existing) { folders.push(JSON.parse(JSON.stringify(def))); migrated = true; return; }
+        def.feeds.forEach(defFeed => {
+          if (!existing.feeds.some(f => f.url === defFeed.url)) {
+            existing.feeds.push({ ...defFeed }); migrated = true;
+          }
+        });
+      });
+      if (migrated) saveData();
     } else {
       folders = JSON.parse(JSON.stringify(DEFAULT_FOLDERS));
       driveFolders = JSON.parse(JSON.stringify(DEFAULT_DRIVE_FOLDERS));
@@ -359,12 +375,15 @@ function renderSidebar() {
   div1.className = 'sidebar-divider';
   list.appendChild(div1);
 
-  // Dossiers podcasts
+  // Dossiers podcasts (avec sous-podcasts dépliables)
   folders.forEach(f => {
     const div = document.createElement('div');
     const isActive = currentView?.type === 'folder' && currentView.id === f.id;
+    const isExpanded = expandedFolders.has(f.id);
+    const hasFeeds = f.feeds.length > 0;
     div.className = 'folder-item' + (isActive ? ' active' : '');
     div.innerHTML = `
+      <span class="folder-toggle" onclick="event.stopPropagation();toggleFolder('${f.id}')" style="display:inline-block;width:14px;cursor:pointer;color:var(--text3);font-size:10px;">${hasFeeds ? (isExpanded ? '▼' : '▶') : ' '}</span>
       <span class="folder-icon">${f.icon || '📁'}</span>
       <span>${escapeHTML(f.name)}</span>
       <span class="folder-count">${f.feeds.length}</span>
@@ -373,6 +392,22 @@ function renderSidebar() {
       </span>`;
     div.onclick = () => selectFolder(f.id);
     list.appendChild(div);
+
+    // Sous-dossiers (podcasts individuels) si déplié
+    if (isExpanded) {
+      f.feeds.forEach((feed, idx) => {
+        const sub = document.createElement('div');
+        const isSubActive = currentView?.type === 'feed' && currentView.folderId === f.id && currentView.feedIdx === idx;
+        sub.className = 'folder-item subfeed' + (isSubActive ? ' active' : '');
+        sub.style.paddingLeft = '36px';
+        sub.style.fontSize = '12px';
+        sub.innerHTML = `
+          <span class="folder-icon" style="font-size:11px;">🎙</span>
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHTML(feed.name)}</span>`;
+        sub.onclick = () => selectFeed(f.id, idx);
+        list.appendChild(sub);
+      });
+    }
   });
 
   // Séparateur Drive
@@ -425,6 +460,43 @@ function selectFolder(id) {
   document.getElementById('content-title').textContent = folder.name;
   document.getElementById('btn-add-feed').style.display = 'inline-block';
   loadFolder(folder);
+}
+
+function toggleFolder(id) {
+  if (expandedFolders.has(id)) expandedFolders.delete(id);
+  else expandedFolders.add(id);
+  renderSidebar();
+}
+
+function selectFeed(folderId, feedIdx) {
+  const folder = folders.find(f => f.id === folderId);
+  if (!folder || !folder.feeds[feedIdx]) return;
+  const feed = folder.feeds[feedIdx];
+  currentView = { type: 'feed', folderId, feedIdx };
+  closeSidebar();
+  renderSidebar();
+  document.getElementById('content-title').textContent = feed.name;
+  document.getElementById('btn-add-feed').style.display = 'none';
+  loadSingleFeed(feed);
+}
+
+async function loadSingleFeed(feed) {
+  const list = document.getElementById('episodes-list');
+  list.innerHTML = `<div class="loading-text">Chargement<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>`;
+  currentEpisodes = [];
+  try {
+    const eps = await loadFeed(feed);
+    eps.sort((a,b) => new Date(b.date||0) - new Date(a.date||0));
+    currentEpisodes = eps;
+    renderEpisodes(eps);
+    const badge = document.getElementById('content-badge');
+    badge.textContent = eps.length + ' épisodes';
+    badge.style.display = 'inline';
+    badge.className = 'badge badge-blue';
+  } catch(e) {
+    list.innerHTML = `<div class="error-text" style="color:var(--red);padding:12px;">Flux indisponible : ${escapeHTML(e.message)}</div>`;
+    document.getElementById('content-badge').style.display = 'none';
+  }
 }
 
 function showRecents() {
@@ -576,12 +648,12 @@ async function loadDriveFolder(folderId) {
     const eps = files.map(f => ({
       title: f.name,
       date: '',
-      // URL de téléchargement direct Drive (mieux supportée par le proxy que l'API alt=media)
-      url: `https://drive.google.com/uc?export=download&id=${f.id}`,
+      url: `https://www.googleapis.com/drive/v3/files/${f.id}?alt=media&key=${DRIVE_API_KEY}`,
       feed: 'Google Drive',
       type: f.mimeType.includes('video') ? 'video' : 'drive',
       mimeType: f.mimeType,
       driveId: f.id,
+      isDrive: true,
     }));
     currentEpisodes = eps;
     renderEpisodes(eps);
@@ -619,8 +691,8 @@ function playEpisode(ep, el) {
     activeMedia = audio;
   }
 
-  // Stream via proxy
-  activeMedia.src = PROXY + encodeURIComponent(ep.url);
+  // Stream : Drive direct (API supporte CORS), tout le reste via proxy
+  activeMedia.src = ep.isDrive ? ep.url : (PROXY + encodeURIComponent(ep.url));
 
   document.getElementById('player-title').textContent = ep.title;
   document.getElementById('player-sub').textContent = ep.feed || '';
