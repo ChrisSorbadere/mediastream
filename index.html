@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0d1117">
+<link rel="icon" type="image/png" href="favicon_32.png">
+<link rel="apple-touch-icon" href="icon_192.png">
+<link rel="manifest" href="manifest.json">
 <title>MediaStream</title>
 <style>
   :root {
@@ -186,9 +189,12 @@
     <div class="player-status idle" id="player-status">IDLE</div>
   </div>
   <audio id="audio-player" controls preload="metadata"></audio>
+  <video id="video-player" controls preload="metadata" style="display:none;width:100%;max-height:240px;border-radius:6px;background:#000;margin-top:4px;"></video>
   <div class="control-bar">
     <button class="control-btn icon-only" onclick="playPrevious()" title="Précédent">⏮</button>
+    <button class="control-btn icon-only" onclick="seekBy(-10)" title="-10 secondes">⏪</button>
     <button class="control-btn icon-only" onclick="restartCurrent()" title="Recommencer">↺</button>
+    <button class="control-btn icon-only" onclick="seekBy(10)" title="+10 secondes">⏩</button>
     <button class="control-btn icon-only" onclick="playNext()" title="Suivant">⏭</button>
     <div class="control-spacer"></div>
     <button class="control-btn icon-only" id="btn-shuffle" onclick="toggleShuffle()" title="Lecture aléatoire">🔀</button>
@@ -244,7 +250,10 @@ const DEFAULT_FOLDERS = [
     ]
   },
   {
-    id: 'science', name: 'Science', icon: '🔬', feeds: []
+    id: 'science', name: 'Science', icon: '🔬',
+    feeds: [
+      { name: "Renaud Dékode", url: 'https://feed.ausha.co/RdgJASVVxKke' },
+    ]
   },
   {
     id: 'social', name: 'Social', icon: '🌍',
@@ -567,9 +576,12 @@ async function loadDriveFolder(folderId) {
     const eps = files.map(f => ({
       title: f.name,
       date: '',
-      url: `https://www.googleapis.com/drive/v3/files/${f.id}?alt=media&key=${DRIVE_API_KEY}`,
+      // URL de téléchargement direct Drive (mieux supportée par le proxy que l'API alt=media)
+      url: `https://drive.google.com/uc?export=download&id=${f.id}`,
       feed: 'Google Drive',
       type: f.mimeType.includes('video') ? 'video' : 'drive',
+      mimeType: f.mimeType,
+      driveId: f.id,
     }));
     currentEpisodes = eps;
     renderEpisodes(eps);
@@ -587,75 +599,85 @@ async function loadDriveFolder(folderId) {
 // LECTEUR
 // ═══════════════════════════════════════════
 const audio = document.getElementById('audio-player');
+const video = document.getElementById('video-player');
+let activeMedia = audio; // alias vers le lecteur actuellement actif
 
 function playEpisode(ep, el) {
   if (activeEpisodeEl) activeEpisodeEl.classList.remove('playing');
   if (el) { el.classList.add('playing'); activeEpisodeEl = el; }
   activeEpisode = ep;
 
+  // Choix du lecteur selon le type
+  const isVideo = ep.type === 'video';
+  if (isVideo) {
+    audio.pause(); audio.style.display = 'none';
+    video.style.display = 'block';
+    activeMedia = video;
+  } else {
+    video.pause(); video.style.display = 'none';
+    audio.style.display = 'block';
+    activeMedia = audio;
+  }
+
   // Stream via proxy
-  audio.src = PROXY + encodeURIComponent(ep.url);
+  activeMedia.src = PROXY + encodeURIComponent(ep.url);
 
   document.getElementById('player-title').textContent = ep.title;
   document.getElementById('player-sub').textContent = ep.feed || '';
-  document.getElementById('player-art').textContent = ep.type === 'video' ? '🎬' : (ep.type === 'drive' ? '☁' : '🎙');
+  document.getElementById('player-art').textContent = isVideo ? '🎬' : (ep.type === 'drive' ? '☁' : '🎙');
 
-  // Ajouter à l'historique
   addToHistory(ep);
 
-  // Reprise position
   const onceLoaded = () => {
     const saved = getPosition(ep.url);
-    if (saved > 5 && audio.duration && saved < audio.duration - 10) {
-      audio.currentTime = saved;
+    if (saved > 5 && activeMedia.duration && saved < activeMedia.duration - 10) {
+      activeMedia.currentTime = saved;
     }
-    audio.play().catch(e => console.warn('Lecture refusée:', e));
+    activeMedia.play().catch(e => console.warn('Lecture refusée:', e));
   };
-  audio.addEventListener('loadedmetadata', onceLoaded, { once: true });
+  activeMedia.addEventListener('loadedmetadata', onceLoaded, { once: true });
 
-  // Media Session
   if ('mediaSession' in navigator) {
     navigator.mediaSession.metadata = new MediaMetadata({
       title: ep.title, artist: ep.feed || '', album: 'MediaStream',
     });
-    navigator.mediaSession.setActionHandler('play', () => audio.play());
-    navigator.mediaSession.setActionHandler('pause', () => audio.pause());
+    navigator.mediaSession.setActionHandler('play', () => activeMedia.play());
+    navigator.mediaSession.setActionHandler('pause', () => activeMedia.pause());
     navigator.mediaSession.setActionHandler('previoustrack', () => playPrevious());
     navigator.mediaSession.setActionHandler('nexttrack', () => playNext());
-    navigator.mediaSession.setActionHandler('seekbackward', e => audio.currentTime = Math.max(0, audio.currentTime - (e.seekOffset||15)));
-    navigator.mediaSession.setActionHandler('seekforward', e => audio.currentTime = Math.min(audio.duration||Infinity, audio.currentTime + (e.seekOffset||30)));
-    try { navigator.mediaSession.setActionHandler('seekto', e => { audio.currentTime = e.seekTime; }); } catch(e) {}
+    navigator.mediaSession.setActionHandler('seekbackward', e => activeMedia.currentTime = Math.max(0, activeMedia.currentTime - (e.seekOffset||10)));
+    navigator.mediaSession.setActionHandler('seekforward', e => activeMedia.currentTime = Math.min(activeMedia.duration||Infinity, activeMedia.currentTime + (e.seekOffset||10)));
+    try { navigator.mediaSession.setActionHandler('seekto', e => { activeMedia.currentTime = e.seekTime; }); } catch(e) {}
   }
 }
 
-audio.addEventListener('play', () => {
-  document.getElementById('player-status').className = 'player-status';
-  document.getElementById('player-status').textContent = '● LIVE';
-});
-audio.addEventListener('pause', () => {
-  document.getElementById('player-status').className = 'player-status idle';
-  document.getElementById('player-status').textContent = 'PAUSE';
-});
-
-let lastSave = 0;
-audio.addEventListener('timeupdate', () => {
-  if (activeEpisode && audio.currentTime > 5 && Date.now() - lastSave > 5000) {
-    savePosition(activeEpisode.url, audio.currentTime);
-    lastSave = Date.now();
-  }
-});
-
-audio.addEventListener('ended', () => {
-  if (loopMode === 'one') {
-    audio.currentTime = 0;
-    audio.play();
-  } else {
-    playNext();
-  }
+// Événements communs aux deux lecteurs
+[audio, video].forEach(m => {
+  m.addEventListener('play', () => {
+    document.getElementById('player-status').className = 'player-status';
+    document.getElementById('player-status').textContent = '● LIVE';
+  });
+  m.addEventListener('pause', () => {
+    document.getElementById('player-status').className = 'player-status idle';
+    document.getElementById('player-status').textContent = 'PAUSE';
+  });
+  let lastSave = 0;
+  m.addEventListener('timeupdate', () => {
+    if (activeEpisode && m === activeMedia && m.currentTime > 5 && Date.now() - lastSave > 5000) {
+      savePosition(activeEpisode.url, m.currentTime);
+      lastSave = Date.now();
+    }
+  });
+  m.addEventListener('ended', () => {
+    if (m !== activeMedia) return;
+    if (loopMode === 'one') { m.currentTime = 0; m.play(); }
+    else { playNext(); }
+  });
 });
 
 function setSpeed(rate) {
   audio.playbackRate = rate;
+  video.playbackRate = rate;
   document.querySelectorAll('.speed-btn').forEach(btn => {
     btn.classList.toggle('active', btn.textContent === '×' + rate);
   });
@@ -698,8 +720,13 @@ function playPrevious() {
 
 function restartCurrent() {
   if (!activeEpisode) return;
-  audio.currentTime = 0;
-  audio.play();
+  activeMedia.currentTime = 0;
+  activeMedia.play();
+}
+
+function seekBy(seconds) {
+  if (!activeEpisode) return;
+  activeMedia.currentTime = Math.max(0, Math.min(activeMedia.duration || Infinity, activeMedia.currentTime + seconds));
 }
 
 function findEpisodeElement(ep) {
@@ -764,7 +791,8 @@ function showModal(mode, ctx) {
       <div class="modal-label">ID du dossier Google Drive</div>
       <input class="modal-input" id="m-id" placeholder="1ABC...xyz" />
       <div style="font-size:11px;color:var(--text3);margin-top:4px;line-height:1.5;">
-        L'ID se trouve dans l'URL du dossier : .../folders/<b style="color:var(--accent)">CET-ID-ICI</b>
+        L'ID se trouve dans l'URL du dossier : .../folders/<b style="color:var(--accent)">CET-ID-ICI</b><br><br>
+        <b style="color:var(--amber);">⚠ Important :</b> chaque fichier audio/vidéo doit être individuellement partagé <i>"Tous les utilisateurs disposant du lien"</i> dans Drive. Le partage du dossier ne suffit pas toujours.
       </div>`;
     actions.innerHTML = `<button class="btn-cancel" onclick="closeModal()">Annuler</button><button class="btn-ok" onclick="saveModal()">Ajouter</button>`;
   }
@@ -828,7 +856,7 @@ function showSettingsModal() {
     <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="if(confirm('Vider l\\'historique ?')){localStorage.removeItem(HISTORY_KEY);location.reload();}">🗑 Vider l'historique</button>
     <button class="btn-danger" style="width:100%;" onclick="if(confirm('Tout réinitialiser ?')){localStorage.clear();location.reload();}">⚠ Tout réinitialiser</button>
     <div class="modal-label" style="margin-top:14px;">À propos</div>
-    <div style="font-size:11px;color:var(--text3);font-family:var(--font-mono);line-height:1.6;">MediaStream v2.0<br>Proxy : Cloudflare Workers</div>`;
+    <div style="font-size:11px;color:var(--text3);font-family:var(--font-mono);line-height:1.6;">MediaStream v2.1<br>Proxy : Cloudflare Workers<br>© Christophe Soulas, 2026</div>`;
   document.getElementById('modal-actions').innerHTML = `<button class="btn-cancel" onclick="closeModal()">Fermer</button>`;
   document.getElementById('modal').style.display = 'flex';
 }
