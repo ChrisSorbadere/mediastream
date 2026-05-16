@@ -684,6 +684,34 @@ const audio = document.getElementById('audio-player');
 const video = document.getElementById('video-player');
 let activeMedia = audio; // alias vers le lecteur actuellement actif
 
+// Web Audio API — pour forcer la lecture en arrière-plan des vidéos en mode 🎧
+let audioContext = null;
+let audioSourceNode = null;
+let audioConnectedMedia = null; // garde la trace de l'élément déjà connecté
+
+function ensureAudioContext() {
+  if (!audioContext) {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    audioContext = new Ctx();
+  }
+  if (audioContext.state === 'suspended') audioContext.resume().catch(()=>{});
+  return audioContext;
+}
+
+function connectMediaToContext(mediaEl) {
+  const ctx = ensureAudioContext();
+  if (!ctx) return;
+  // Un élément ne peut être connecté qu'une seule fois à un AudioContext
+  if (audioConnectedMedia === mediaEl) return;
+  try {
+    if (audioSourceNode) { try { audioSourceNode.disconnect(); } catch(e) {} }
+    audioSourceNode = ctx.createMediaElementSource(mediaEl);
+    audioSourceNode.connect(ctx.destination);
+    audioConnectedMedia = mediaEl;
+  } catch(e) { console.warn('Web Audio:', e.message); }
+}
+
 function playEpisode(ep, el) {
   if (activeEpisodeEl) activeEpisodeEl.classList.remove('playing');
   if (el) { el.classList.add('playing'); activeEpisodeEl = el; }
@@ -731,6 +759,8 @@ function playEpisode(ep, el) {
     if (saved > 5 && activeMedia.duration && saved < activeMedia.duration - 10) {
       activeMedia.currentTime = saved;
     }
+    // Pour les vidéos, on connecte au Web Audio Context pour permettre la lecture en arrière-plan
+    if (isVideo) connectMediaToContext(video);
     activeMedia.play().catch(e => console.warn('Lecture refusée:', e));
   };
   activeMedia.addEventListener('loadedmetadata', onceLoaded, { once: true });
@@ -1165,6 +1195,13 @@ function formatTime(s) {
 // ═══════════════════════════════════════════
 loadData();
 showRecents(); // Page d'accueil
+
+// Réveille le contexte audio quand l'app revient au premier plan
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && audioContext && audioContext.state === 'suspended') {
+    audioContext.resume().catch(()=>{});
+  }
+});
 
 // Récupère en arrière-plan le vrai nom de chaque dossier Drive
 (async () => {
