@@ -68,14 +68,19 @@
   .episode-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px; border-radius: 6px; cursor: pointer; border: 1px solid transparent; margin-bottom: 3px; }
   .episode-item:hover { background: var(--bg3); border-color: var(--border); }
   .episode-item.playing { background: var(--bg3); border-color: var(--accent2); }
-  .ep-thumb { width: 40px; height: 40px; border-radius: 6px; background: var(--bg4); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 16px; border: 1px solid var(--border); }
+  .episode-item.finished { opacity: 0.55; }
+  .episode-item.finished .ep-title { color: var(--text2); }
+  .ep-thumb { width: 40px; height: 40px; border-radius: 6px; background: var(--bg4); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 16px; border: 1px solid var(--border); overflow: hidden; }
+  .ep-thumb img { display: block; }
   .ep-info { flex: 1; min-width: 0; }
   .ep-title { font-size: 13px; font-weight: 500; line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
   .ep-meta { font-size: 11px; color: var(--text3); margin-top: 3px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .ep-source { font-size: 10px; padding: 1px 6px; border-radius: 3px; background: var(--bg4); color: var(--text2); }
   .ep-resume { font-size: 10px; padding: 1px 6px; border-radius: 3px; background: rgba(63,185,80,0.15); color: var(--green); font-family: var(--font-mono); }
-  .ep-action { flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--bg4); color: var(--accent); font-size: 10px; border: 1px solid var(--border); align-self: center; }
-  .episode-item:hover .ep-action { background: var(--accent2); color: white; }
+  .ep-actions-right { display: flex; flex-direction: column; gap: 4px; align-self: center; }
+  .ep-icon-btn { background: var(--bg4); border: 1px solid var(--border); color: var(--text2); cursor: pointer; width: 26px; height: 26px; border-radius: 4px; font-size: 11px; display: flex; align-items: center; justify-content: center; padding: 0; }
+  .ep-icon-btn:hover { background: var(--accent2); color: white; border-color: var(--accent); }
+
 
   /* PLAYER */
   .player { background: #06090f; border-top: 1px solid var(--border); padding: 10px 16px 12px; flex-shrink: 0; padding-bottom: calc(12px + env(safe-area-inset-bottom)); box-shadow: 0 -4px 12px rgba(0,0,0,0.4); }
@@ -200,6 +205,7 @@
     <button class="control-btn icon-only" id="btn-audio-only" onclick="toggleAudioOnly()" title="Audio seul (continue en arrière-plan)" style="display:none;">🎧</button>
     <button class="control-btn icon-only" id="btn-shuffle" onclick="toggleShuffle()" title="Lecture aléatoire">🔀</button>
     <button class="control-btn icon-only" id="btn-loop" onclick="toggleLoop()" title="Boucle">🔁</button>
+    <button class="control-btn icon-only" id="btn-sleep" onclick="showSleepModal()" title="Minuteur de sommeil">💤</button>
     <div class="control-spacer"></div>
     <button class="speed-btn active" onclick="setSpeed(1)">×1</button>
     <button class="speed-btn" onclick="setSpeed(1.25)">×1.25</button>
@@ -368,6 +374,7 @@ function renderSidebar() {
   // Dossiers spéciaux
   list.appendChild(makeSpecialItem('recents', '🕒', 'Récents', currentView?.type === 'recents'));
   list.appendChild(makeSpecialItem('archives', '📦', 'Archives', currentView?.type === 'archives'));
+  list.appendChild(makeSpecialItem('search', '🔎', 'Recherche globale', currentView?.type === 'search'));
 
   const div1 = document.createElement('div');
   div1.className = 'sidebar-divider';
@@ -442,7 +449,11 @@ function makeSpecialItem(type, icon, name, active) {
   const div = document.createElement('div');
   div.className = 'folder-item special' + (active ? ' active' : '');
   div.innerHTML = `<span class="folder-icon">${icon}</span><span>${name}</span>`;
-  div.onclick = () => { type === 'recents' ? showRecents() : showArchives(); };
+  div.onclick = () => {
+    if (type === 'recents') showRecents();
+    else if (type === 'archives') showArchives();
+    else if (type === 'search') showGlobalSearch();
+  };
   return div;
 }
 
@@ -527,6 +538,42 @@ function showArchives() {
   badge.style.display = 'inline';
 }
 
+let globalSearchCache = null;
+let globalSearchCacheTime = 0;
+
+async function showGlobalSearch() {
+  currentView = { type: 'search' };
+  closeSidebar();
+  renderSidebar();
+  document.getElementById('content-title').textContent = '🔎 Recherche globale';
+  document.getElementById('btn-add-feed').style.display = 'none';
+  document.getElementById('content-badge').style.display = 'none';
+
+  // Cache de 10 min pour éviter de recharger tous les flux à chaque visite
+  const fresh = globalSearchCache && (Date.now() - globalSearchCacheTime < 600000);
+  if (!fresh) {
+    const list = document.getElementById('episodes-list');
+    list.innerHTML = `<div class="loading-text">Chargement de tous les flux<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>`;
+    let allEps = [];
+    for (const folder of folders) {
+      const results = await Promise.allSettled(folder.feeds.map(f => loadFeed(f)));
+      results.forEach(r => {
+        if (r.status === 'fulfilled') allEps = allEps.concat(r.value.map(e => ({...e, folderName: folder.name})));
+      });
+    }
+    allEps.sort((a,b) => new Date(b.date||0) - new Date(a.date||0));
+    globalSearchCache = allEps;
+    globalSearchCacheTime = Date.now();
+  }
+  currentEpisodes = globalSearchCache;
+  renderEpisodes(currentEpisodes);
+  const badge = document.getElementById('content-badge');
+  badge.textContent = `${currentEpisodes.length} épisodes · Tape pour filtrer`;
+  badge.className = 'badge badge-purple';
+  badge.style.display = 'inline';
+  document.getElementById('search-input').focus();
+}
+
 // ═══════════════════════════════════════════
 // CHARGEMENT FLUX
 // ═══════════════════════════════════════════
@@ -537,13 +584,33 @@ async function loadFeed(feed) {
   const parser = new DOMParser();
   const xml = parser.parseFromString(text, 'application/xml');
   if (xml.querySelector('parsererror')) throw new Error('XML invalide');
+
+  // Image du podcast (channel-level itunes:image ou image > url)
+  let podcastImage = '';
+  const chImg = xml.getElementsByTagName('itunes:image')[0];
+  if (chImg) podcastImage = chImg.getAttribute('href') || '';
+  if (!podcastImage) {
+    podcastImage = xml.querySelector('channel > image > url')?.textContent || '';
+  }
+
   const items = xml.querySelectorAll('item');
   return Array.from(items).slice(0, 10).map(item => {
     const enc = item.querySelector('enclosure');
-    // Durée : balise itunes:duration (format soit "HH:MM:SS", soit "MM:SS", soit secondes brutes)
     let duration = '';
     const durEl = item.getElementsByTagName('itunes:duration')[0];
     if (durEl) duration = durEl.textContent.trim();
+    // Description (description ou itunes:summary), nettoyée du HTML
+    let description = item.querySelector('description')?.textContent || '';
+    if (!description) {
+      const sum = item.getElementsByTagName('itunes:summary')[0];
+      if (sum) description = sum.textContent;
+    }
+    description = description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 500);
+    // Image épisode (itunes:image) sinon image du podcast
+    let image = '';
+    const itImg = item.getElementsByTagName('itunes:image')[0];
+    if (itImg) image = itImg.getAttribute('href') || '';
+    if (!image) image = podcastImage;
     return {
       title: item.querySelector('title')?.textContent || 'Sans titre',
       date: item.querySelector('pubDate')?.textContent || '',
@@ -551,6 +618,8 @@ async function loadFeed(feed) {
       feed: feed.name,
       type: 'audio',
       duration,
+      description,
+      image,
     };
   }).filter(e => e.url);
 }
@@ -584,19 +653,46 @@ async function loadFolder(folder) {
   if (failed.length) console.warn('Échec:', failed);
 }
 
+function isFinished(ep) {
+  const pos = getPosition(ep.url);
+  if (!pos) return false;
+  // Pour les positions sauvegardées : si on a dépassé 95% d'une durée connue (depuis position vs durée RSS approx)
+  // On considère terminé si la position dépasse la durée en secondes (si on l'a)
+  const durSecs = parseDurationToSeconds(ep.duration);
+  if (durSecs && pos >= durSecs * 0.95) return true;
+  return false;
+}
+
+function parseDurationToSeconds(d) {
+  if (!d) return 0;
+  if (/^\d+$/.test(d)) return parseInt(d);
+  const parts = d.split(':').map(p => parseInt(p) || 0);
+  if (parts.length === 3) return parts[0]*3600 + parts[1]*60 + parts[2];
+  if (parts.length === 2) return parts[0]*60 + parts[1];
+  return 0;
+}
+
 function renderEpisodes(eps) {
   const list = document.getElementById('episodes-list');
   list.innerHTML = '';
   if (!eps.length) { list.innerHTML = '<div class="empty-text">Aucun épisode</div>'; return; }
-  eps.forEach(ep => {
+  const isRecentsView = currentView?.type === 'recents' || currentView?.type === 'archives';
+  eps.forEach((ep, idx) => {
     const div = document.createElement('div');
-    div.className = 'episode-item';
+    const finished = isFinished(ep);
+    div.className = 'episode-item' + (finished ? ' finished' : '');
     const pos = getPosition(ep.url);
-    const resumeTxt = pos > 5 ? `<span class="ep-resume">⏱ ${formatTime(pos)}</span>` : '';
+    const resumeTxt = (pos > 5 && !finished) ? `<span class="ep-resume">⏱ ${formatTime(pos)}</span>` : '';
+    const finishedTxt = finished ? `<span class="ep-resume" style="background:rgba(110,118,129,0.2);color:var(--text3);">✓ Lu</span>` : '';
     const durationTxt = ep.duration ? `<span class="ep-source">${formatDuration(ep.duration)}</span>` : '';
     const icon = ep.type === 'video' ? '🎬' : (ep.type === 'drive' ? '☁' : '🎙');
+    const thumbHtml = ep.image
+      ? `<div class="ep-thumb"><img src="${escapeHTML(ep.image)}" loading="lazy" onerror="this.outerHTML='${icon}'" style="width:100%;height:100%;object-fit:cover;"></div>`
+      : `<div class="ep-thumb">${icon}</div>`;
+    const infoBtn = ep.description ? `<button class="ep-icon-btn" onclick="event.stopPropagation();showEpisodeInfo(${idx})" title="Description">ⓘ</button>` : '';
+    const removeBtn = isRecentsView ? `<button class="ep-icon-btn" onclick="event.stopPropagation();removeFromHistory('${escapeAttr(ep.url)}')" title="Retirer">✕</button>` : '';
     div.innerHTML = `
-      <div class="ep-thumb">${icon}</div>
+      ${thumbHtml}
       <div class="ep-info">
         <div class="ep-title">${escapeHTML(ep.title)}</div>
         <div class="ep-meta">
@@ -604,11 +700,43 @@ function renderEpisodes(eps) {
           <span>${formatDate(ep.date)}</span>
           ${durationTxt}
           ${resumeTxt}
+          ${finishedTxt}
         </div>
-      </div>`;
+      </div>
+      <div class="ep-actions-right">${infoBtn}${removeBtn}</div>`;
     div.onclick = () => playEpisode(ep, div);
     list.appendChild(div);
   });
+}
+
+function escapeAttr(s) {
+  return String(s||'').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function showEpisodeInfo(idx) {
+  const ep = currentEpisodes[idx];
+  if (!ep) return;
+  modalMode = 'episode-info';
+  document.getElementById('modal-title').textContent = 'ⓘ ' + ep.title;
+  document.getElementById('modal-error').style.display = 'none';
+  document.getElementById('modal-body').innerHTML = `
+    <div class="modal-label">${escapeHTML(ep.feed)} · ${formatDate(ep.date)}${ep.duration ? ' · ' + formatDuration(ep.duration) : ''}</div>
+    <div style="font-size:13px;color:var(--text);line-height:1.6;max-height:300px;overflow-y:auto;padding:8px;background:var(--bg3);border-radius:6px;">
+      ${escapeHTML(ep.description) || '<em style="color:var(--text3);">Aucune description disponible.</em>'}
+    </div>`;
+  document.getElementById('modal-actions').innerHTML = `
+    <button class="btn-cancel" onclick="closeModal()">Fermer</button>
+    <button class="btn-ok" onclick="closeModal();playEpisode(currentEpisodes[${idx}], null);">▶ Écouter</button>`;
+  document.getElementById('modal').style.display = 'flex';
+}
+
+function removeFromHistory(url) {
+  let history = getHistory();
+  history = history.filter(h => h.url !== url);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+  // Rafraîchir la vue
+  if (currentView?.type === 'recents') showRecents();
+  else if (currentView?.type === 'archives') showArchives();
 }
 
 function filterEpisodes() {
@@ -774,6 +902,13 @@ function playEpisode(ep, el) {
   });
   m.addEventListener('ended', () => {
     if (m !== activeMedia) return;
+    // Minuteur "fin d'épisode" : on stoppe ici
+    if (sleepTimer === 'end-of-episode') {
+      sleepTimer = null;
+      sleepEndAt = 0;
+      document.getElementById('btn-sleep').classList.remove('active');
+      return;
+    }
     if (loopMode === 'one') { m.currentTime = 0; m.play(); }
     else { playNext(); }
   });
@@ -854,6 +989,58 @@ function toggleLoop() {
   btn.classList.toggle('active', !!loopMode);
   btn.textContent = loopMode === 'one' ? '🔂' : '🔁';
   btn.title = loopMode === 'one' ? 'Boucle épisode' : (loopMode === 'all' ? 'Boucle liste' : 'Boucle off');
+}
+
+// Minuteur de sommeil
+let sleepTimer = null;
+let sleepEndAt = 0;
+
+function showSleepModal() {
+  modalMode = 'sleep';
+  document.getElementById('modal-title').textContent = '💤 Minuteur de sommeil';
+  document.getElementById('modal-error').style.display = 'none';
+  const active = sleepTimer ? `<div style="font-size:12px;color:var(--green);margin-bottom:10px;padding:8px;background:rgba(63,185,80,0.1);border-radius:6px;">⏱ Actif — arrêt dans ${Math.ceil((sleepEndAt - Date.now())/60000)} min</div>` : '';
+  document.getElementById('modal-body').innerHTML = `
+    ${active}
+    <div class="modal-label">Arrêter la lecture dans :</div>
+    <button class="btn-cancel" style="width:100%;margin-bottom:6px;" onclick="setSleepTimer(15)">⏰ 15 minutes</button>
+    <button class="btn-cancel" style="width:100%;margin-bottom:6px;" onclick="setSleepTimer(30)">⏰ 30 minutes</button>
+    <button class="btn-cancel" style="width:100%;margin-bottom:6px;" onclick="setSleepTimer(45)">⏰ 45 minutes</button>
+    <button class="btn-cancel" style="width:100%;margin-bottom:6px;" onclick="setSleepTimer(60)">⏰ 1 heure</button>
+    <button class="btn-cancel" style="width:100%;margin-bottom:6px;" onclick="setSleepTimerEndOfEpisode()">📍 Fin de l'épisode</button>
+    ${sleepTimer ? `<button class="btn-danger" style="width:100%;margin-top:6px;" onclick="cancelSleepTimer()">✕ Annuler</button>` : ''}`;
+  document.getElementById('modal-actions').innerHTML = `<button class="btn-cancel" onclick="closeModal()">Fermer</button>`;
+  document.getElementById('modal').style.display = 'flex';
+}
+
+function setSleepTimer(minutes) {
+  if (sleepTimer) clearTimeout(sleepTimer);
+  sleepEndAt = Date.now() + minutes * 60000;
+  sleepTimer = setTimeout(() => {
+    if (!audio.paused) audio.pause();
+    if (!video.paused) video.pause();
+    sleepTimer = null;
+    document.getElementById('btn-sleep').classList.remove('active');
+  }, minutes * 60000);
+  document.getElementById('btn-sleep').classList.add('active');
+  closeModal();
+}
+
+function setSleepTimerEndOfEpisode() {
+  if (sleepTimer) { clearTimeout(sleepTimer); sleepTimer = null; }
+  // Drapeau qui sera vérifié dans l'événement 'ended'
+  sleepEndAt = -1; // signal "fin d'épisode"
+  sleepTimer = 'end-of-episode';
+  document.getElementById('btn-sleep').classList.add('active');
+  closeModal();
+}
+
+function cancelSleepTimer() {
+  if (sleepTimer && sleepTimer !== 'end-of-episode') clearTimeout(sleepTimer);
+  sleepTimer = null;
+  sleepEndAt = 0;
+  document.getElementById('btn-sleep').classList.remove('active');
+  closeModal();
 }
 
 function toggleAudioOnly() {
