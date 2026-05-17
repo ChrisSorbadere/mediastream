@@ -687,7 +687,7 @@ function renderEpisodes(eps) {
     const durationTxt = ep.duration ? `<span class="ep-source">${formatDuration(ep.duration)}</span>` : '';
     const icon = ep.type === 'video' ? '🎬' : (ep.type === 'drive' ? '☁' : '🎙');
     const thumbHtml = ep.image
-      ? `<div class="ep-thumb"><img src="${escapeHTML(ep.image)}" loading="lazy" onerror="this.outerHTML='${icon}'" style="width:100%;height:100%;object-fit:cover;"></div>`
+      ? `<div class="ep-thumb"><img src="${escapeAttr(ep.image)}" loading="lazy" onerror="this.style.display='none';this.parentNode.textContent='${icon}'" style="width:100%;height:100%;object-fit:cover;"></div>`
       : `<div class="ep-thumb">${icon}</div>`;
     const infoBtn = ep.description ? `<button class="ep-icon-btn" onclick="event.stopPropagation();showEpisodeInfo(${idx})" title="Description">ⓘ</button>` : '';
     const removeBtn = isRecentsView ? `<button class="ep-icon-btn" onclick="event.stopPropagation();removeFromHistory('${escapeAttr(ep.url)}')" title="Retirer">✕</button>` : '';
