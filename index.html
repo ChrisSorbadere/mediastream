@@ -78,7 +78,7 @@
   .episode-item:hover .ep-action { background: var(--accent2); color: white; }
 
   /* PLAYER */
-  .player { background: var(--bg2); border-top: 1px solid var(--border); padding: 10px 16px 12px; flex-shrink: 0; padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+  .player { background: #06090f; border-top: 1px solid var(--border); padding: 10px 16px 12px; flex-shrink: 0; padding-bottom: calc(12px + env(safe-area-inset-bottom)); box-shadow: 0 -4px 12px rgba(0,0,0,0.4); }
   .player-top { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
   .player-art { width: 38px; height: 38px; border-radius: 6px; background: var(--bg4); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
   .player-info { flex: 1; min-width: 0; }
@@ -540,12 +540,17 @@ async function loadFeed(feed) {
   const items = xml.querySelectorAll('item');
   return Array.from(items).slice(0, 10).map(item => {
     const enc = item.querySelector('enclosure');
+    // Durée : balise itunes:duration (format soit "HH:MM:SS", soit "MM:SS", soit secondes brutes)
+    let duration = '';
+    const durEl = item.getElementsByTagName('itunes:duration')[0];
+    if (durEl) duration = durEl.textContent.trim();
     return {
       title: item.querySelector('title')?.textContent || 'Sans titre',
       date: item.querySelector('pubDate')?.textContent || '',
       url: enc?.getAttribute('url') || '',
       feed: feed.name,
       type: 'audio',
+      duration,
     };
   }).filter(e => e.url);
 }
@@ -588,6 +593,7 @@ function renderEpisodes(eps) {
     div.className = 'episode-item';
     const pos = getPosition(ep.url);
     const resumeTxt = pos > 5 ? `<span class="ep-resume">⏱ ${formatTime(pos)}</span>` : '';
+    const durationTxt = ep.duration ? `<span class="ep-source">${formatDuration(ep.duration)}</span>` : '';
     const icon = ep.type === 'video' ? '🎬' : (ep.type === 'drive' ? '☁' : '🎙');
     div.innerHTML = `
       <div class="ep-thumb">${icon}</div>
@@ -596,10 +602,10 @@ function renderEpisodes(eps) {
         <div class="ep-meta">
           <span class="ep-source">${escapeHTML(ep.feed)}</span>
           <span>${formatDate(ep.date)}</span>
+          ${durationTxt}
           ${resumeTxt}
         </div>
-      </div>
-      <div class="ep-action">▶</div>`;
+      </div>`;
     div.onclick = () => playEpisode(ep, div);
     list.appendChild(div);
   });
@@ -1158,6 +1164,16 @@ function formatTime(s) {
   const m = Math.floor(s/60), sec = s%60;
   if (m >= 60) { const h = Math.floor(m/60); return `${h}h${(m%60).toString().padStart(2,'0')}`; }
   return `${m}:${sec.toString().padStart(2,'0')}`;
+}
+
+function formatDuration(d) {
+  if (!d) return '';
+  // Format possible : "HH:MM:SS", "MM:SS", ou nombre de secondes
+  if (/^\d+$/.test(d)) return formatTime(parseInt(d));
+  const parts = d.split(':').map(p => parseInt(p) || 0);
+  if (parts.length === 3) return `${parts[0]}h${parts[1].toString().padStart(2,'0')}`;
+  if (parts.length === 2) return `${parts[0]}:${parts[1].toString().padStart(2,'0')}`;
+  return d;
 }
 
 // ═══════════════════════════════════════════
