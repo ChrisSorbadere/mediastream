@@ -20,35 +20,35 @@
   }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
-  body { font-family: var(--font); background: var(--bg); color: var(--text); display: flex; flex-direction: column; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); display: flex; flex-direction: column; font-size: 15px; }
 
   header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--bg2); border-bottom: 1px solid var(--border); flex-shrink: 0; }
-  .logo { font-family: var(--font-mono); font-size: 14px; font-weight: 700; letter-spacing: 0.12em; color: var(--accent); text-transform: uppercase; cursor: pointer; }
+  .logo { font-family: var(--font-mono); font-size: 16px; font-weight: 700; letter-spacing: 0.12em; color: var(--accent); text-transform: uppercase; cursor: pointer; }
   .logo span { color: var(--text3); }
-  .menu-btn { background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text2); padding: 5px 10px; cursor: pointer; font-size: 14px; display: none; }
+  .menu-btn { background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text2); padding: 6px 12px; cursor: pointer; font-size: 16px; display: none; }
   .header-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
-  .search-input { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; color: var(--text); font-size: 13px; width: 200px; outline: none; }
+  .search-input { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 7px 11px; color: var(--text); font-size: 14px; width: 200px; outline: none; }
   .search-input:focus { border-color: var(--accent); }
   .search-input::placeholder { color: var(--text3); }
-  .settings-btn { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; color: var(--text2); padding: 5px 10px; cursor: pointer; font-size: 14px; }
+  .settings-btn { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; color: var(--text2); padding: 6px 12px; cursor: pointer; font-size: 16px; }
   .settings-btn:hover { color: var(--text); }
 
   .main { display: flex; flex: 1; overflow: hidden; }
 
   .sidebar { width: 230px; background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0; }
   .sidebar-header { padding: 12px 14px 8px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
-  .sidebar-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text3); }
-  .btn-add { background: none; border: 1px solid var(--border); border-radius: 4px; color: var(--text2); font-size: 11px; padding: 3px 8px; cursor: pointer; }
+  .sidebar-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text3); }
+  .btn-add { background: none; border: 1px solid var(--border); border-radius: 4px; color: var(--text2); font-size: 13px; padding: 4px 10px; cursor: pointer; }
   .btn-add:hover { background: var(--bg3); color: var(--text); border-color: var(--border2); }
   .sidebar-list { flex: 1; overflow-y: auto; padding: 6px 0; }
 
-  .folder-item { display: flex; align-items: center; gap: 8px; padding: 9px 14px; cursor: pointer; font-size: 13px; border-left: 2px solid transparent; color: var(--text2); user-select: none; }
+  .folder-item { display: flex; align-items: center; gap: 8px; padding: 11px 14px; cursor: pointer; font-size: 15px; border-left: 2px solid transparent; color: var(--text2); user-select: none; }
   .folder-item:hover { background: var(--bg3); color: var(--text); }
   .folder-item.active { background: var(--bg3); border-left-color: var(--accent); color: var(--text); }
   .folder-item.special { color: var(--purple); }
   .folder-item.special.active { border-left-color: var(--purple); }
-  .folder-icon { font-size: 14px; flex-shrink: 0; }
-  .folder-count { margin-left: auto; font-size: 10px; background: var(--bg4); color: var(--text3); padding: 1px 6px; border-radius: 10px; }
+  .folder-icon { font-size: 16px; flex-shrink: 0; }
+  .folder-count { margin-left: auto; font-size: 11px; background: var(--bg4); color: var(--text3); padding: 2px 7px; border-radius: 10px; }
   .folder-item.active .folder-count { background: var(--accent2); color: #fff; }
   .folder-actions { display: none; gap: 4px; margin-left: 4px; }
   .folder-item:hover .folder-actions, .folder-item.active .folder-actions { display: flex; }
@@ -57,82 +57,91 @@
   .sidebar-divider { height: 1px; background: var(--border); margin: 6px 10px; }
 
   .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-  .content-header { padding: 12px 18px; border-bottom: 1px solid var(--border); background: var(--bg2); flex-shrink: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .content-title { font-size: 15px; font-weight: 600; }
-  .badge { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 600; }
+  .content-header { padding: 14px 18px; border-bottom: 1px solid var(--border); background: var(--bg2); flex-shrink: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .content-title { font-size: 17px; font-weight: 600; }
+  .badge { font-size: 11px; padding: 3px 9px; border-radius: 10px; font-weight: 600; }
   .badge-blue { background: rgba(88,166,255,0.15); color: var(--accent); }
   .badge-red { background: rgba(248,81,73,0.15); color: var(--red); }
   .badge-purple { background: rgba(188,140,255,0.15); color: var(--purple); }
 
   .episodes-list { flex: 1; overflow-y: auto; padding: 8px; -webkit-overflow-scrolling: touch; }
-  .episode-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px; border-radius: 6px; cursor: pointer; border: 1px solid transparent; margin-bottom: 3px; }
+  .episode-item { display: flex; align-items: flex-start; gap: 12px; padding: 12px; border-radius: 6px; cursor: pointer; border: 1px solid transparent; margin-bottom: 4px; }
   .episode-item:hover { background: var(--bg3); border-color: var(--border); }
   .episode-item.playing { background: var(--bg3); border-color: var(--accent2); }
   .episode-item.finished { opacity: 0.55; }
   .episode-item.finished .ep-title { color: var(--text2); }
-  .ep-thumb { width: 40px; height: 40px; border-radius: 6px; background: var(--bg4); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 16px; border: 1px solid var(--border); overflow: hidden; }
+  .ep-thumb { width: 48px; height: 48px; border-radius: 6px; background: var(--bg4); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 19px; border: 1px solid var(--border); overflow: hidden; }
   .ep-thumb img { display: block; }
   .ep-info { flex: 1; min-width: 0; }
-  .ep-title { font-size: 13px; font-weight: 500; line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-  .ep-meta { font-size: 11px; color: var(--text3); margin-top: 3px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .ep-source { font-size: 10px; padding: 1px 6px; border-radius: 3px; background: var(--bg4); color: var(--text2); }
-  .ep-resume { font-size: 10px; padding: 1px 6px; border-radius: 3px; background: rgba(63,185,80,0.15); color: var(--green); font-family: var(--font-mono); }
+  .ep-title { font-size: 15px; font-weight: 500; line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .ep-meta { font-size: 12px; color: var(--text3); margin-top: 4px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .ep-source { font-size: 11px; padding: 2px 7px; border-radius: 3px; background: var(--bg4); color: var(--text2); }
+  .ep-resume { font-size: 11px; padding: 2px 7px; border-radius: 3px; background: rgba(63,185,80,0.15); color: var(--green); font-family: var(--font-mono); }
   .ep-actions-right { display: flex; flex-direction: column; gap: 4px; align-self: center; }
-  .ep-icon-btn { background: var(--bg4); border: 1px solid var(--border); color: var(--text2); cursor: pointer; width: 26px; height: 26px; border-radius: 4px; font-size: 11px; display: flex; align-items: center; justify-content: center; padding: 0; }
+  .ep-icon-btn { background: var(--bg4); border: 1px solid var(--border); color: var(--text2); cursor: pointer; width: 30px; height: 30px; border-radius: 4px; font-size: 13px; display: flex; align-items: center; justify-content: center; padding: 0; }
   .ep-icon-btn:hover { background: var(--accent2); color: white; border-color: var(--accent); }
 
 
   /* PLAYER */
   .player { background: #06090f; border-top: 1px solid var(--border); padding: 10px 16px 12px; flex-shrink: 0; padding-bottom: calc(12px + env(safe-area-inset-bottom)); box-shadow: 0 -4px 12px rgba(0,0,0,0.4); }
   .player-top { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
-  .player-art { width: 38px; height: 38px; border-radius: 6px; background: var(--bg4); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .player-art { width: 44px; height: 44px; border-radius: 6px; background: var(--bg4); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
   .player-info { flex: 1; min-width: 0; }
-  .player-title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .player-sub { font-size: 11px; color: var(--text3); margin-top: 1px; }
-  .player-status { font-size: 10px; padding: 3px 7px; border-radius: 3px; background: rgba(63,185,80,0.15); color: var(--green); font-family: var(--font-mono); font-weight: 600; }
+  .player-title { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .player-sub { font-size: 12px; color: var(--text3); margin-top: 2px; }
+  .player-status { font-size: 11px; padding: 3px 8px; border-radius: 3px; background: rgba(63,185,80,0.15); color: var(--green); font-family: var(--font-mono); font-weight: 600; }
   .player-status.idle { background: var(--bg4); color: var(--text3); }
   audio { width: 100%; height: 38px; accent-color: var(--accent); }
 
   /* CONTROLES SUPP */
   .control-bar { display: flex; align-items: center; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
-  .control-btn { background: var(--bg4); border: 1px solid var(--border); border-radius: 4px; color: var(--text2); font-size: 13px; padding: 5px 9px; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+  .control-btn { background: var(--bg4); border: 1px solid var(--border); border-radius: 4px; color: var(--text2); font-size: 15px; padding: 6px 11px; cursor: pointer; display: flex; align-items: center; gap: 4px; }
   .control-btn:hover { background: var(--bg3); color: var(--text); border-color: var(--border2); }
   .control-btn.active { background: var(--accent2); color: white; border-color: var(--accent); }
-  .control-btn.icon-only { padding: 5px 8px; }
-  .control-spacer { width: 1px; height: 18px; background: var(--border); margin: 0 4px; }
+  .control-btn.icon-only { padding: 6px 10px; }
+  .control-spacer { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
 
   .speed-bar { display: flex; align-items: center; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
-  .speed-label { font-size: 10px; color: var(--text3); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; margin-right: 4px; }
-  .speed-btn { background: var(--bg4); border: 1px solid var(--border); border-radius: 4px; color: var(--text2); font-size: 11px; font-family: var(--font-mono); padding: 3px 9px; cursor: pointer; line-height: 1.5; }
+  .speed-label { font-size: 11px; color: var(--text3); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; margin-right: 4px; }
+  .speed-btn { background: var(--bg4); border: 1px solid var(--border); border-radius: 4px; color: var(--text2); font-size: 12px; font-family: var(--font-mono); padding: 4px 11px; cursor: pointer; line-height: 1.5; }
   .speed-btn:hover { background: var(--bg3); color: var(--text); border-color: var(--border2); }
   .speed-btn.active { background: var(--accent2); color: white; border-color: var(--accent); }
 
-  .loading-text { color: var(--text3); font-size: 13px; text-align: center; padding: 30px; font-family: var(--font-mono); }
+  .loading-text { color: var(--text3); font-size: 14px; text-align: center; padding: 30px; font-family: var(--font-mono); }
   .loading-text .dot { display: inline-block; animation: blink 1.2s infinite; }
   .loading-text .dot:nth-child(2) { animation-delay: 0.2s; }
   .loading-text .dot:nth-child(3) { animation-delay: 0.4s; }
   @keyframes blink { 0%,100%{opacity:0.2} 50%{opacity:1} }
-  .empty-text { color: var(--text3); font-size: 13px; text-align: center; padding: 30px; }
+  .empty-text { color: var(--text3); font-size: 14px; text-align: center; padding: 30px; }
 
   /* MODAL */
   .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(4px); padding: 16px; }
   .modal { background: var(--bg2); border: 1px solid var(--border2); border-radius: 12px; padding: 22px; width: 100%; max-width: 420px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); max-height: 90vh; overflow-y: auto; }
-  .modal-title { font-size: 15px; font-weight: 600; margin-bottom: 16px; }
-  .modal-input, .modal-select { width: 100%; padding: 9px 11px; font-size: 13px; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; color: var(--text); outline: none; margin-bottom: 10px; font-family: var(--font); }
+  .modal-title { font-size: 17px; font-weight: 600; margin-bottom: 16px; }
+  .modal-input, .modal-select { width: 100%; padding: 10px 12px; font-size: 14px; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; color: var(--text); outline: none; margin-bottom: 10px; font-family: var(--font); }
   .modal-input:focus, .modal-select:focus { border-color: var(--accent); }
   .modal-input::placeholder { color: var(--text3); }
   .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; flex-wrap: wrap; align-items: center; }
-  .btn-cancel, .btn-ok, .btn-danger { padding: 8px 16px; font-size: 13px; border-radius: 6px; cursor: pointer; border: 1px solid transparent; }
+  .btn-cancel, .btn-ok, .btn-danger { padding: 9px 18px; font-size: 14px; border-radius: 6px; cursor: pointer; border: 1px solid transparent; }
   .btn-cancel { background: none; color: var(--text2); border-color: var(--border); }
   .btn-cancel:hover { background: var(--bg3); color: var(--text); }
   .btn-ok { background: var(--accent2); color: white; border: none; font-weight: 500; }
   .btn-ok:hover { background: var(--accent); }
   .btn-danger { background: rgba(248,81,73,0.2); color: var(--red); border-color: rgba(248,81,73,0.4); margin-right: auto; }
   .btn-danger:hover { background: rgba(248,81,73,0.3); }
-  .modal-error { color: var(--red); font-size: 12px; margin-bottom: 8px; font-family: var(--font-mono); padding: 6px 8px; background: rgba(248,81,73,0.1); border-radius: 4px; }
-  .modal-label { font-size: 11px; color: var(--text3); margin-bottom: 4px; margin-top: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .modal-error { color: var(--red); font-size: 13px; margin-bottom: 8px; font-family: var(--font-mono); padding: 6px 8px; background: rgba(248,81,73,0.1); border-radius: 4px; }
+  .modal-label { font-size: 12px; color: var(--text3); margin-bottom: 4px; margin-top: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
   .modal-list { max-height: 200px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; }
-  .modal-list-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; font-size: 12px; border-bottom: 1px solid var(--border); }
+  .modal-list-item { display: flex; align-items: center; gap: 8px; padding: 9px 11px; font-size: 13px; border-bottom: 1px solid var(--border); }
+  .discover-result { display: flex; gap: 10px; padding: 10px; border-bottom: 1px solid var(--border); align-items: flex-start; }
+  .discover-result:last-child { border-bottom: none; }
+  .discover-art { width: 48px; height: 48px; border-radius: 6px; flex-shrink: 0; background: var(--bg4); border: 1px solid var(--border); overflow: hidden; }
+  .discover-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .discover-info { flex: 1; min-width: 0; }
+  .discover-title { font-size: 14px; font-weight: 500; color: var(--text); }
+  .discover-meta { font-size: 12px; color: var(--text3); margin-top: 3px; }
+  .discover-add { background: var(--accent2); color: white; border: none; padding: 6px 12px; border-radius: 5px; font-size: 12px; cursor: pointer; align-self: center; flex-shrink: 0; }
+  .discover-add:hover { background: var(--accent); }
   .modal-list-item:last-child { border-bottom: none; }
   .modal-list-item-name { flex: 1; color: var(--text); }
   .icon-btn { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 13px; padding: 2px 5px; }
@@ -142,8 +151,8 @@
     .sidebar { position: fixed; left: 0; top: 0; bottom: 0; z-index: 50; transform: translateX(-100%); transition: transform 0.2s; box-shadow: 4px 0 20px rgba(0,0,0,0.5); }
     .sidebar.open { transform: translateX(0); }
     .menu-btn { display: block; }
-    .search-input { width: 120px; font-size: 12px; }
-    .logo { font-size: 12px; }
+    .search-input { width: 130px; font-size: 13px; }
+    .logo { font-size: 13px; }
     .overlay-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 40; }
     .overlay-bg.visible { display: block; }
   }
@@ -160,6 +169,7 @@
   <div class="logo" onclick="showRecents()">Media<span>Stream</span></div>
   <div class="header-right">
     <input class="search-input" type="text" placeholder="Rechercher…" id="search-input" oninput="filterEpisodes()" />
+    <button class="settings-btn" onclick="showDiscoverModal()" title="Découvrir un podcast">🔍</button>
     <button class="settings-btn" onclick="showSettingsModal()" title="Paramètres">⚙</button>
   </div>
 </header>
@@ -1160,8 +1170,109 @@ function showDriveManager(idx) {
   document.getElementById('modal').style.display = 'flex';
 }
 
+function showDiscoverModal() {
+  modalMode = 'discover';
+  document.getElementById('modal-title').textContent = '🔍 Découvrir un podcast';
+  document.getElementById('modal-error').style.display = 'none';
+  document.getElementById('modal-body').innerHTML = `
+    <div class="modal-label">Recherche dans le catalogue Apple Podcasts</div>
+    <input class="modal-input" id="discover-query" placeholder="Ex. Le Collimateur, philosophie, histoire…" />
+    <div id="discover-results" style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;background:var(--bg3);min-height:60px;">
+      <div class="empty-text" style="padding:20px;font-size:13px;">Tape un nom de podcast pour rechercher</div>
+    </div>`;
+  document.getElementById('modal-actions').innerHTML = `<button class="btn-cancel" onclick="closeModal()">Fermer</button>`;
+  document.getElementById('modal').style.display = 'flex';
+  const input = document.getElementById('discover-query');
+  setTimeout(() => input.focus(), 50);
+  let timer = null;
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    const q = input.value.trim();
+    if (q.length < 2) return;
+    timer = setTimeout(() => searchPodcasts(q), 400);
+  });
+}
+
+async function searchPodcasts(query) {
+  const box = document.getElementById('discover-results');
+  if (!box) return;
+  box.innerHTML = `<div class="loading-text" style="padding:20px;">Recherche<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>`;
+  try {
+    // iTunes Search API : gratuit, sans clé, CORS ouvert
+    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=podcast&country=FR&limit=15`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const results = data.results || [];
+    if (!results.length) {
+      box.innerHTML = `<div class="empty-text" style="padding:20px;font-size:13px;">Aucun résultat pour "${escapeHTML(query)}"</div>`;
+      return;
+    }
+    // Stockage temporaire des résultats pour le bouton "+"
+    window._discoverResults = results;
+    box.innerHTML = results.map((r, i) => {
+      const art = r.artworkUrl100 || r.artworkUrl60 || '';
+      const artHtml = art ? `<img src="${escapeAttr(art)}" loading="lazy" onerror="this.style.display='none'">` : '';
+      return `
+        <div class="discover-result">
+          <div class="discover-art">${artHtml}</div>
+          <div class="discover-info">
+            <div class="discover-title">${escapeHTML(r.collectionName || r.trackName || 'Sans titre')}</div>
+            <div class="discover-meta">${escapeHTML(r.artistName || '')}${r.primaryGenreName ? ' · ' + escapeHTML(r.primaryGenreName) : ''}</div>
+          </div>
+          <button class="discover-add" onclick="addDiscoveredPodcast(${i})">+ Ajouter</button>
+        </div>`;
+    }).join('');
+  } catch(e) {
+    box.innerHTML = `<div class="error-text" style="margin:10px;">Erreur de recherche : ${escapeHTML(e.message)}</div>`;
+  }
+}
+
+function addDiscoveredPodcast(idx) {
+  const r = (window._discoverResults || [])[idx];
+  if (!r) return;
+  const feedUrl = r.feedUrl;
+  const name = r.collectionName || r.trackName || 'Sans titre';
+  if (!feedUrl) { alert('Ce podcast n\'expose pas son flux RSS.'); return; }
+
+  modalMode = 'discover-add';
+  document.getElementById('modal-title').textContent = '+ Ajouter à un dossier';
+  document.getElementById('modal-error').style.display = 'none';
+  document.getElementById('modal-body').innerHTML = `
+    <div style="font-size:14px;margin-bottom:14px;">
+      <b>${escapeHTML(name)}</b><br>
+      <span style="font-size:12px;color:var(--text3);">${escapeHTML(r.artistName || '')}</span>
+    </div>
+    <div class="modal-label">Dossier de destination</div>
+    <select class="modal-select" id="discover-folder">
+      ${folders.map(f => `<option value="${f.id}">${escapeHTML(f.name)}</option>`).join('')}
+    </select>
+    <div class="modal-label">Nom affiché (modifiable)</div>
+    <input class="modal-input" id="discover-name" value="${escapeAttr(name)}" />`;
+  document.getElementById('modal-actions').innerHTML = `
+    <button class="btn-cancel" onclick="showDiscoverModal()">← Retour</button>
+    <button class="btn-ok" onclick="confirmAddDiscovered('${escapeAttr(feedUrl)}')">Ajouter</button>`;
+}
+
+function confirmAddDiscovered(feedUrl) {
+  const name = document.getElementById('discover-name').value.trim();
+  const folderId = document.getElementById('discover-folder').value;
+  if (!name) { alert('Le nom est requis.'); return; }
+  const folder = folders.find(f => f.id === folderId);
+  if (!folder) return;
+  // Évite les doublons
+  if (folder.feeds.some(f => f.url === feedUrl)) {
+    alert('Ce podcast est déjà dans le dossier "' + folder.name + '".');
+    return;
+  }
+  folder.feeds.push({ name, url: feedUrl });
+  saveData();
+  closeModal();
+  renderSidebar();
+  // Si on est dans ce dossier, recharger
+  if (currentView?.type === 'folder' && currentView.id === folderId) loadFolder(folder);
+}
+
 function showSettingsModal() {
-  modalMode = 'settings';
   document.getElementById('modal-title').textContent = '⚙ Paramètres';
   document.getElementById('modal-error').style.display = 'none';
   document.getElementById('modal-body').innerHTML = `
