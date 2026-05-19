@@ -1228,12 +1228,26 @@ async function searchPodcasts(query) {
   }
 }
 
-function addDiscoveredPodcast(idx) {
+async function addDiscoveredPodcast(idx) {
   const r = (window._discoverResults || [])[idx];
   if (!r) return;
-  const feedUrl = r.feedUrl;
+  let feedUrl = r.feedUrl;
   const name = r.collectionName || r.trackName || 'Sans titre';
-  if (!feedUrl) { alert('Ce podcast n\'expose pas son flux RSS.'); return; }
+
+  // Si iTunes Search ne renvoie pas le feedUrl, on essaie l'endpoint lookup (plus complet)
+  if (!feedUrl && r.collectionId) {
+    try {
+      const res = await fetch(`https://itunes.apple.com/lookup?id=${r.collectionId}&entity=podcast`);
+      const data = await res.json();
+      const result = (data.results || [])[0];
+      if (result && result.feedUrl) feedUrl = result.feedUrl;
+    } catch(e) {}
+  }
+
+  if (!feedUrl) {
+    alert("Ce podcast n'expose pas son flux RSS dans Apple Podcasts.\n\nTu peux essayer de le trouver via https://castos.com/tools/find-podcast-rss-feed/ et l'ajouter manuellement via le bouton '+ Podcast' dans le dossier.");
+    return;
+  }
 
   modalMode = 'discover-add';
   document.getElementById('modal-title').textContent = '+ Ajouter à un dossier';
