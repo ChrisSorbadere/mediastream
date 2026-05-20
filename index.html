@@ -171,7 +171,6 @@
   <div class="header-right">
     <input class="search-input" type="text" placeholder="Rechercher…" id="search-input" oninput="filterEpisodes()" />
     <button class="settings-btn" onclick="showDiscoverModal()" title="Découvrir un podcast">🔍</button>
-    <button class="settings-btn" onclick="showSettingsModal()" title="Paramètres">⚙</button>
   </div>
 </header>
 
@@ -180,7 +179,10 @@
   <div class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <span class="sidebar-title">Dossiers</span>
-      <button class="btn-add" onclick="showModal('new-folder')">+ Dossier</button>
+      <div style="display:flex;gap:6px;">
+        <button class="btn-add" onclick="showModal('new-folder')">+ Dossier</button>
+        <button class="btn-add" onclick="showSettingsModal()" title="Paramètres">⚙</button>
+      </div>
     </div>
     <div class="sidebar-list" id="sidebar-list"></div>
   </div>
@@ -385,6 +387,7 @@ function renderSidebar() {
   list.appendChild(makeSpecialItem('recents', '🕒', 'Récents', currentView?.type === 'recents'));
   list.appendChild(makeSpecialItem('archives', '📦', 'Archives', currentView?.type === 'archives'));
   list.appendChild(makeSpecialItem('search', '🔎', 'Recherche globale', currentView?.type === 'search'));
+  list.appendChild(makeSpecialItem('radio', '📻', 'Radios', currentView?.type === 'radio'));
 
   const div1 = document.createElement('div');
   div1.className = 'sidebar-divider';
@@ -463,6 +466,7 @@ function makeSpecialItem(type, icon, name, active) {
     if (type === 'recents') showRecents();
     else if (type === 'archives') showArchives();
     else if (type === 'search') showGlobalSearch();
+    else if (type === 'radio') showRadios();
   };
   return div;
 }
@@ -582,6 +586,106 @@ async function showGlobalSearch() {
   badge.className = 'badge badge-purple';
   badge.style.display = 'inline';
   document.getElementById('search-input').focus();
+}
+
+// ═══════════════════════════════════════════
+// RADIOS (Radio Browser API)
+// ═══════════════════════════════════════════
+const RADIO_API = 'https://de1.api.radio-browser.info/json/stations/search';
+let radioFilters = { country: 'France', tag: '', name: '' };
+
+async function showRadios() {
+  currentView = { type: 'radio' };
+  closeSidebar();
+  renderSidebar();
+  document.getElementById('content-title').textContent = '📻 Radios web';
+  document.getElementById('btn-add-feed').style.display = 'none';
+  document.getElementById('content-badge').style.display = 'none';
+
+  const list = document.getElementById('episodes-list');
+  list.innerHTML = `
+    <div style="padding:10px;display:flex;gap:8px;flex-wrap:wrap;background:var(--bg2);border-radius:6px;margin-bottom:10px;">
+      <input class="modal-input" id="radio-country" placeholder="Pays (ex. France)" value="${escapeAttr(radioFilters.country)}" style="flex:1;min-width:120px;margin:0;">
+      <input class="modal-input" id="radio-tag" placeholder="Genre (ex. jazz, classical)" value="${escapeAttr(radioFilters.tag)}" style="flex:1;min-width:120px;margin:0;">
+      <input class="modal-input" id="radio-name" placeholder="Nom" value="${escapeAttr(radioFilters.name)}" style="flex:1;min-width:120px;margin:0;">
+      <button class="btn-ok" onclick="searchRadios()" style="padding:9px 16px;">Rechercher</button>
+    </div>
+    <div id="radio-list"><div class="empty-text">Renseigne au moins un critère puis clique "Rechercher"</div></div>`;
+
+  // Recherche automatique si on a déjà des filtres
+  if (radioFilters.country || radioFilters.tag || radioFilters.name) searchRadios();
+
+  // Permet "Entrée" pour lancer la recherche
+  ['radio-country','radio-tag','radio-name'].forEach(id => {
+    document.getElementById(id)?.addEventListener('keydown', e => { if (e.key === 'Enter') searchRadios(); });
+  });
+}
+
+async function searchRadios() {
+  radioFilters.country = document.getElementById('radio-country').value.trim();
+  radioFilters.tag = document.getElementById('radio-tag').value.trim();
+  radioFilters.name = document.getElementById('radio-name').value.trim();
+
+  const box = document.getElementById('radio-list');
+  box.innerHTML = `<div class="loading-text">Chargement<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>`;
+
+  const params = new URLSearchParams({
+    limit: '50',
+    hidebroken: 'true',
+    order: 'clickcount',
+    reverse: 'true',
+  });
+  if (radioFilters.country) params.set('country', radioFilters.country);
+  if (radioFilters.tag) params.set('tag', radioFilters.tag);
+  if (radioFilters.name) params.set('name', radioFilters.name);
+
+  try {
+    const res = await fetch(`${RADIO_API}?${params.toString()}`);
+    const stations = await res.json();
+    if (!stations.length) {
+      box.innerHTML = '<div class="empty-text">Aucune station trouvée. Essaie d\'autres critères.</div>';
+      currentEpisodes = [];
+      return;
+    }
+    // Transformer en format épisode
+    const eps = stations.map(s => ({
+      title: s.name?.trim() || 'Sans nom',
+      date: '',
+      url: s.url_resolved || s.url,
+      feed: s.country || 'Radio',
+      type: 'radio',
+      duration: '',
+      image: s.favicon || '',
+      description: [s.tags, s.language, s.codec, s.bitrate ? s.bitrate + ' kbps' : ''].filter(Boolean).join(' · '),
+      isRadio: true,
+    }));
+    currentEpisodes = eps;
+    box.innerHTML = '';
+    eps.forEach(ep => {
+      const div = document.createElement('div');
+      div.className = 'episode-item';
+      const imgHtml = ep.image
+        ? `<img src="${escapeAttr(ep.image)}" loading="lazy" onerror="this.style.display='none';this.parentNode.textContent='📻'" style="width:100%;height:100%;object-fit:cover;">`
+        : '📻';
+      div.innerHTML = `
+        <div class="ep-thumb">${imgHtml}</div>
+        <div class="ep-info">
+          <div class="ep-title">${escapeHTML(ep.title)}</div>
+          <div class="ep-meta">
+            <span class="ep-source">${escapeHTML(ep.feed)}</span>
+            <span>${escapeHTML(ep.description)}</span>
+          </div>
+        </div>`;
+      div.onclick = () => playEpisode(ep, div);
+      box.appendChild(div);
+    });
+    const badge = document.getElementById('content-badge');
+    badge.textContent = eps.length + ' stations';
+    badge.className = 'badge badge-purple';
+    badge.style.display = 'inline';
+  } catch(e) {
+    box.innerHTML = `<div class="error-text" style="color:var(--red);padding:12px;">Erreur API Radio Browser : ${escapeHTML(e.message)}</div>`;
+  }
 }
 
 // ═══════════════════════════════════════════
@@ -856,24 +960,28 @@ function playEpisode(ep, el) {
     activeMedia = audio;
   }
 
-  // Stream : Drive direct (API supporte CORS), tout le reste via proxy
-  activeMedia.src = ep.isDrive ? ep.url : (PROXY + encodeURIComponent(ep.url));
+  // Stream : Drive direct + Radios direct (déjà CORS-ok), tout le reste via proxy
+  activeMedia.src = (ep.isDrive || ep.isRadio) ? ep.url : (PROXY + encodeURIComponent(ep.url));
 
   document.getElementById('player-title').textContent = ep.title;
   document.getElementById('player-sub').textContent = ep.feed || '';
-  document.getElementById('player-art').textContent = (isVideo && audioOnlyMode) ? '🎧' : (isVideo ? '🎬' : (ep.type === 'drive' ? '☁' : '🎙'));
+  document.getElementById('player-art').textContent = (isVideo && audioOnlyMode) ? '🎧' : (isVideo ? '🎬' : (ep.type === 'radio' ? '📻' : (ep.type === 'drive' ? '☁' : '🎙')));
 
   // Bouton "Audio seul" visible uniquement pour les vidéos
   const btnAO = document.getElementById('btn-audio-only');
   btnAO.style.display = isVideo ? 'flex' : 'none';
   btnAO.classList.toggle('active', isVideo && audioOnlyMode);
 
-  addToHistory(ep);
+  // Pas d'historique pour les radios (sinon ça pollue les Récents)
+  if (!ep.isRadio) addToHistory(ep);
 
   const onceLoaded = () => {
-    const saved = getPosition(ep.url);
-    if (saved > 5 && activeMedia.duration && saved < activeMedia.duration - 10) {
-      activeMedia.currentTime = saved;
+    // Pas de reprise position pour les radios (flux live)
+    if (!ep.isRadio) {
+      const saved = getPosition(ep.url);
+      if (saved > 5 && activeMedia.duration && saved < activeMedia.duration - 10) {
+        activeMedia.currentTime = saved;
+      }
     }
     activeMedia.play().catch(e => console.warn('Lecture refusée:', e));
   };
