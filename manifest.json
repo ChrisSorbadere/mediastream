@@ -1,26 +1,585 @@
 {
-  "name": "MediaStream",
-  "short_name": "MediaStream",
-  "description": "Lecteur de podcasts et fichiers Google Drive",
-  "start_url": "./",
-  "display": "standalone",
-  "background_color": "#0d1117",
-  "theme_color": "#0d1117",
-  "orientation": "portrait-primary",
-  "lang": "fr",
-  "categories": ["music", "entertainment"],
-  "icons": [
+  "folders": [
     {
-      "src": "icon_192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "id": "politique",
+      "name": "Politique",
+      "icon": "🗳",
+      "feeds": [
+        {
+          "name": "L'heure des pros (CNews)",
+          "url": "https://feeds.acast.com/public/shows/lheure-des-pros"
+        },
+        {
+          "name": "New Deal (Slate)",
+          "url": "https://feeds.360.audion.fm/6DEDYNDVuyDDA-xbBAq8y"
+        },
+        {
+          "name": "Le monde devant soi (Slate)",
+          "url": "https://feeds.360.audion.fm/le-monde-devant-soi"
+        },
+        {
+          "name": "Décryptage",
+          "url": "https://apis.rfi.fr/products/get_product/rfi_getpodcast_by_nid?token_application=975d23b8-7a07-11e8-9f62-005056a90194&program.entrepriseId=WB955927-RFI-FR-20130510"
+        },
+        {
+          "name": "Questions du soir : le débat",
+          "url": "https://radiofrance-podcast.net/podcast09/podcast_4a343ac1-9c42-448a-b1be-301794c7b2ba.xml"
+        },
+        {
+          "name": "Questions du soir : l'idée",
+          "url": "https://radiofrance-podcast.net/podcast09/podcast_18d2d677-e679-453c-aec9-76ddef22ddb4.xml"
+        },
+        {
+          "name": "C dans l'air",
+          "url": "https://api.octopus.saooti.com/rss/playlist/500.rss"
+        },
+        {
+          "name": "Le Club Le Figaro Idées",
+          "url": "https://feed.ausha.co/BngaaIax3npK"
+        },
+        {
+          "name": "Face à l'Info",
+          "url": "https://feeds.acast.com/public/shows/6156d7ab7722140012bbdeb1"
+        },
+        {
+          "name": "L'Esprit public",
+          "url": "https://radiofrance-podcast.net/podcast09/podcast_be0662d8-d0b5-442a-940d-837109136fe1.xml"
+        },
+        {
+          "name": "L’heure libre",
+          "url": "https://www.sudradio.fr/programme/lheure-libre/poditunes"
+        },
+        {
+          "name": "Le Collimateur",
+          "url": "https://feeds.audiomeans.fr/feed/64ee3763-1a46-44c2-8640-3a69405a3ad8.xml"
+        }
+      ]
     },
     {
-      "src": "icon_512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "id": "histoire",
+      "name": "Histoire",
+      "icon": "📜",
+      "feeds": [
+        {
+          "name": "Entrez dans l'histoire (RTL)",
+          "url": "https://feeds.audiomeans.fr/feed/971b31f2-42d6-4d41-95ee-1c0554528483.xml"
+        },
+        {
+          "name": "Secrets d'histoire",
+          "url": "https://feeds.360.audion.fm/wdHHhlNbFMLhqQi-Xdw3a"
+        },
+        {
+          "name": "Autant en emporte l'histoire",
+          "url": "https://radiofrance-podcast.net/podcast09/35099478-7c72-4f9e-a6de-1b928400e9e5/rss_14435.xml"
+        },
+        {
+          "name": "Au cœur de l'histoire (Europe 1)",
+          "url": "https://feeds.audiomeans.fr/feed/7c44ef0d-1d1c-4230-9da1-b2e4f839108c.xml"
+        },
+        {
+          "name": "Dossiers de Franck Ferrand",
+          "url": "https://feeds.audiomeans.fr/feed/1e1146ca-6d5d-4a7c-a1a2-0735872d9b07.xml"
+        },
+        {
+          "name": "Le Cours de l'histoire",
+          "url": "http://radiofrance-podcast.net/podcast09/podcast_c951e8a9-6121-4400-a3ef-5f9c958d36c3.xml"
+        },
+        {
+          "name": "Concordance des temps",
+          "url": "https://radiofrance-podcast.net/podcast09/podcast_d88dae25-44df-11e5-9fe0-005056a87c89.xml"
+        }
+      ]
+    },
+    {
+      "id": "science",
+      "name": "Science",
+      "icon": "🔬",
+      "feeds": [
+        {
+          "name": "Renaud Dékode",
+          "url": "https://feed.ausha.co/RdgJASVVxKke"
+        },
+        {
+          "name": "Science et vie",
+          "url": "https://feeds.audiomeans.fr/feed/37d79a3e-ed4e-4095-9082-7ef000b76dfa.xml"
+        },
+        {
+          "name": "La Science, CQFD",
+          "url": "https://radiofrance-podcast.net/podcast09/35099478-7c72-4f9e-a6de-1b928400e9e5/rss_14312.xml"
+        }
+      ]
+    },
+    {
+      "id": "social",
+      "name": "Social",
+      "icon": "🌍",
+      "feeds": [
+        {
+          "name": "Legend (Guillaume Pley)",
+          "url": "https://feeds.acast.com/public/shows/legend-guillaume-pley"
+        },
+        {
+          "name": "Thinkerview",
+          "url": "https://www.thinkerview.com/feed/podcast/"
+        },
+        {
+          "name": "Le monde devant soi",
+          "url": "https://feeds.360.audion.fm/6vYrdDyXh5Atl8U_u-eyu"
+        },
+        {
+          "name": "Cultures du monde",
+          "url": "https://radiofrance-podcast.net/podcast09/podcast_8f2d1e07-aaf1-4935-96d2-4307f470baec.xml"
+        }
+      ]
+    },
+    {
+      "id": "spiritualite",
+      "name": "Spiritualité",
+      "icon": "✨",
+      "feeds": [
+        {
+          "name": "Arcana (Ludovic Richer)",
+          "url": "https://feed.ausha.co/B4O4Ltpnk3ZM"
+        }
+      ]
+    },
+    {
+      "id": "litterature",
+      "name": "Littérature",
+      "icon": "📚",
+      "feeds": [
+        {
+          "name": "Arkham Inn",
+          "url": "https://anchor.fm/s/33829f0/podcast/rss"
+        },
+        {
+          "name": "La Grande Librairie",
+          "url": "https://api.octopus.saooti.com/rss/emission/14523.rss"
+        }
+      ]
+    },
+    {
+      "id": "folder_1779116467328",
+      "name": "Philosophie",
+      "icon": "💡",
+      "feeds": [
+        {
+          "name": "Le Précepteur",
+          "url": "https://feeds.audiomeans.fr/feed/aced395e-6351-498a-9397-144bb12e80d6.xml"
+        },
+        {
+          "name": "Avec philosophie",
+          "url": "https://radiofrance-podcast.net/podcast09/d4463877-caa3-4507-9399-f5eb00fde027/podcast_b073d78c-d0d6-4910-b2e1-f9b370158a12.xml"
+        }
+      ]
+    },
+    {
+      "id": "folder_1779117380535",
+      "name": "Géopolitique",
+      "icon": "🌐",
+      "feeds": [
+        {
+          "name": "Le Collimateur",
+          "url": "https://feeds.audiomeans.fr/feed/64ee3763-1a46-44c2-8640-3a69405a3ad8.xml"
+        },
+        {
+          "name": "Géopolitique Marie-France Chatin",
+          "url": "https://apis.rfi.fr/products/get_product/rfi_getpodcast_by_nid?token_application=975d23b8-7a07-11e8-9f62-005056a90194&program.entrepriseId=WB1294-RFI-FR-20090930"
+        },
+        {
+          "name": "Géo",
+          "url": "https://radiofrance-podcast.net/podcast09/d4463877-caa3-4507-9399-f5eb00fde027/podcast_355586fd-7eaa-433e-979c-98ca082b5fb1.xml"
+        },
+        {
+          "name": "New Deal",
+          "url": "https://feeds.360.audion.fm/6DEDYNDVuyDDA-xbBAq8y"
+        }
+      ]
     }
-  ]
+  ],
+  "driveFolders": [
+    {
+      "name": "📜 Poésie",
+      "id": "1EUUZ6lsS3vUqOvusvrKcwdHS9s_65iO9"
+    },
+    {
+      "name": "🎷 Musique",
+      "id": "1WLfrG9y8HiT3T4ocfqROo91qWrsOREhi"
+    },
+    {
+      "name": "❤️ Romantique",
+      "id": "1ajiPj0ZXpwsXFWuY5cdq65liXVy9l0lS"
+    },
+    {
+      "name": "⚠️ Alternatif",
+      "id": "1I1ybXrqJlZzXxT0x627U4johSDRyr9iI"
+    },
+    {
+      "name": "🇨🇵 Variété",
+      "id": "1_lhen0C0nUwhiFy3jxJowH73pDd362sW"
+    }
+  ],
+  "history": [
+    {
+      "title": "Années 70 -1.mp3",
+      "date": "",
+      "url": "https://www.googleapis.com/drive/v3/files/1oLv444DqldLaNfP-5YjGytSlBIb-KRaz?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
+      "feed": "Google Drive",
+      "type": "drive",
+      "mimeType": "audio/mpeg",
+      "driveId": "1oLv444DqldLaNfP-5YjGytSlBIb-KRaz",
+      "isDrive": true,
+      "listenedAt": 1779277299690
+    },
+    {
+      "title": "Années 60.mp3",
+      "date": "",
+      "url": "https://www.googleapis.com/drive/v3/files/1oioS4PcT1MHpUFj3EAq9RdaydFBCAbkg?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
+      "feed": "Google Drive",
+      "type": "drive",
+      "mimeType": "audio/mpeg",
+      "driveId": "1oioS4PcT1MHpUFj3EAq9RdaydFBCAbkg",
+      "isDrive": true,
+      "listenedAt": 1779276909377
+    },
+    {
+      "title": "Cognition du rat : l'égout et les couleurs",
+      "date": "Tue, 19 May 2026 16:58:45 +0200",
+      "url": "https://proxycast.radiofrance.fr/3c2ac6a1-9d34-4483-b23e-a990da1f4040/14312-19.05.2026-ITEMA_24517641-2026C48906S0139-NET_MFC_3D922363-8A09-41E3-9DFE-E3FBB608B74F-21-5f007b7aca3080e8a524517516277f28.mp3",
+      "feed": "La Science, CQFD",
+      "type": "audio",
+      "duration": "00:58:36",
+      "description": "durée : 00:58:36 - La Science, CQFD - par : Natacha Triou, Antoine Beauchamp - Animal grégaire, empathique et doté de capacités cognitives remarquables, le rat brun, omniprésent dans nos villes depuis des siècles, est bien plus qu'un nuisible. De modèle de laboratoire à animal de compagnie, il pourrait maintenant devenir un marqueur de la bonne gestion de nos espaces urbains. - réalisation : Olivier Bétard - invités : Aude Lalis Enseignante-chercheuse en génétique des populations au Muséum natio",
+      "image": "https://www.radiofrance.fr/s3/cruiser-production/2022/08/50c31dc5-9e16-482d-95f3-f8f0b69eb3ad/1400x1400_la-science-cqfd.jpg",
+      "listenedAt": 1779213449103
+    },
+    {
+      "title": "Alexandre Brugère - Périscolaire: le scandale prend de l'ampleur",
+      "date": "Tue, 19 May 2026 07:00:00 +0200",
+      "url": "https://api.octopus.saooti.com/podcast/download/2514643.mp3?origin=rss",
+      "feed": "C dans l'air",
+      "type": "audio",
+      "duration": "00:13:29",
+      "description": "C dans l’air l'invité du 18 mai 2026 avec Alexandre Brugère, préfet des Hauts-de-Seine. Dans les Hauts-de-Seine, huit animateurs ont été suspendus en un mois dans le périscolaire. Le préfet du département, Alexandre Brugère, est notre invité. Il avait promis le 10 avril dernier de \"faire le ménage\", et annoncé suspendre systématiquement à titre conservatoire tout individu qui ferait l’objet d’un signalement de violence ou d’abus sexuel sur mineur, «le temps que l’enquête administrative permette ",
+      "image": "https://storage.gra.cloud.ovh.net/v1/AUTH_1db17c9a9c714ce39f508d240f11d920/octopus-bucket/6889b58c-454d-4b39-be81-d14254401a23/f388cec8-4126-4dc8-aaac-6d7f644ca9ce.jpg",
+      "listenedAt": 1779206026200
+    },
+    {
+      "title": "L'Heure des Pros (Émission du 19/05/2026)",
+      "date": "Tue, 19 May 2026 09:09:40 GMT",
+      "url": "https://sphinx.acast.com/p/open/s/61308a906d38e90019a4bdd1/e/6a0c28d80bb7fec0e3bca595/media.mp3",
+      "feed": "L'heure des pros (CNews)",
+      "type": "audio",
+      "duration": "1:46:43",
+      "description": "Pascal Praud et ses invités débattent des grands thèmes de l'actualité dans #HDPros Hébergé par Acast. Visitez acast.com/privacy pour plus d'informations.",
+      "image": "https://assets.pippa.io/shows/61308a906d38e90019a4bdd1/1772202865861-c53363d3-fcef-4ed4-923d-eb772bfcc972.jpeg",
+      "listenedAt": 1779205999569
+    },
+    {
+      "title": "Pete Yorn & Scarlett Johansson - Relator.mp4",
+      "date": "",
+      "url": "https://www.googleapis.com/drive/v3/files/1Nrm9F6NUZ0822xiWT4xp8Azns8JEZ_7k?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
+      "feed": "Google Drive",
+      "type": "video",
+      "mimeType": "video/mp4",
+      "driveId": "1Nrm9F6NUZ0822xiWT4xp8Azns8JEZ_7k",
+      "isDrive": true,
+      "listenedAt": 1779205975632
+    },
+    {
+      "title": "The Cranberries - Linger (Official Music Video).mp4",
+      "date": "",
+      "url": "https://www.googleapis.com/drive/v3/files/1nrdO6FsWLBMUPbwf8w_pctchsLqxQWjZ?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
+      "feed": "Google Drive",
+      "type": "video",
+      "mimeType": "video/mp4",
+      "driveId": "1nrdO6FsWLBMUPbwf8w_pctchsLqxQWjZ",
+      "isDrive": true,
+      "listenedAt": 1779205970683
+    },
+    {
+      "title": "The Kiffness x Mariana Campolongo - Conselho (Almir Guineto Cover).mp4",
+      "date": "",
+      "url": "https://www.googleapis.com/drive/v3/files/1M_AeYx7Q8mqQ9v8VurHZLVKIudwr6NBq?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
+      "feed": "Google Drive",
+      "type": "video",
+      "mimeType": "video/mp4",
+      "driveId": "1M_AeYx7Q8mqQ9v8VurHZLVKIudwr6NBq",
+      "isDrive": true,
+      "listenedAt": 1779205966034
+    },
+    {
+      "title": "The Power Of Love (Frankie Goes To Hollywood) - Steve Franklin Remix.mp4",
+      "date": "",
+      "url": "https://www.googleapis.com/drive/v3/files/10V5Q4o4Vdvr-QhNyWlxNSxVTCFBpUFIY?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
+      "feed": "Google Drive",
+      "type": "video",
+      "mimeType": "video/mp4",
+      "driveId": "10V5Q4o4Vdvr-QhNyWlxNSxVTCFBpUFIY",
+      "isDrive": true,
+      "listenedAt": 1779205962703
+    },
+    {
+      "title": "The Weeknd - Save Your Tears (Official Music Video).mp4",
+      "date": "",
+      "url": "https://www.googleapis.com/drive/v3/files/1PLwjiylC-s2NKixz6ZrL6H4Wp_vxJi2A?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
+      "feed": "Google Drive",
+      "type": "video",
+      "mimeType": "video/mp4",
+      "driveId": "1PLwjiylC-s2NKixz6ZrL6H4Wp_vxJi2A",
+      "isDrive": true,
+      "listenedAt": 1779205957848
+    },
+    {
+      "title": "Tom Odell - Another Love (Official Video).mp4",
+      "date": "",
+      "url": "https://www.googleapis.com/drive/v3/files/1Olum92RwL5GzDmz5EzGI2QdEKyJuJj1O?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
+      "feed": "Google Drive",
+      "type": "video",
+      "mimeType": "video/mp4",
+      "driveId": "1Olum92RwL5GzDmz5EzGI2QdEKyJuJj1O",
+      "isDrive": true,
+      "listenedAt": 1779205952665
+    },
+    {
+      "title": "LiliRoseDreams - ¡Porque lo digo yo y punto.mp3",
+      "date": "",
+      "url": "https://www.googleapis.com/drive/v3/files/1Vdv6uTngWrIUZwZIyKnbqNT3ivHspXKc?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
+      "feed": "Google Drive",
+      "type": "drive",
+      "mimeType": "audio/mpeg",
+      "driveId": "1Vdv6uTngWrIUZwZIyKnbqNT3ivHspXKc",
+      "isDrive": true,
+      "listenedAt": 1779205054269
+    },
+    {
+      "title": "Kyo - Le Graal (Clip officiel).mp4",
+      "date": "",
+      "url": "https://www.googleapis.com/drive/v3/files/1SCgDJ-924MmLfjg7MKDvPoYcXBckvdhZ?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
+      "feed": "Google Drive",
+      "type": "video",
+      "mimeType": "video/mp4",
+      "driveId": "1SCgDJ-924MmLfjg7MKDvPoYcXBckvdhZ",
+      "isDrive": true,
+      "listenedAt": 1779204555702
+    },
+    {
+      "title": "Histoire des Anges et des Démons",
+      "date": "Fri, 15 May 2026 06:00:00 +0000",
+      "url": "https://tr.ausha.co/o9ZJkiD1YPe6/api.soundcast.io/v1/stitch/ausha.mp3?tags=62229451a1e06&apiKey=c1a94b3301c64853868548ac73233ca1&podcastUrl=https%3A%2F%2Faudio.ausha.co%2Fo9ZJkiD1YPe6.mp3%3Ft%3D1761298841",
+      "feed": "Arcana (Ludovic Richer)",
+      "type": "audio",
+      "duration": "2:45:08",
+      "description": "Les anges et les démons, figures emblématiques des religions monothéistes, sont des créatures de l’au-delà, célestes ou chthoniennes, positives ou négatives. Ils jouent un rôle d’intermédiaire entre les hommes et Dieu pour certains, tandis que d’autres les perçoivent comme des tentateurs et des destructeurs. Nous nous pencherons sur l’histoire de ces créatures, explorant l’angélologie et la démonologie, ainsi que leurs racines dans les traditions païennes plus anciennes. Notre étude portera égal",
+      "image": "https://image.ausha.co/15pCVdnzWGfmNA2HTjBu1CgZ6IyUk6XHG5ahp24J_1400x1400.jpeg?t=1761298700",
+      "listenedAt": 1779203839996
+    },
+    {
+      "title": "Amy Winehouse - You Know I'm No Good.mp4",
+      "date": "",
+      "url": "https://www.googleapis.com/drive/v3/files/1uCqEGt0SuXMe5vcST_e9z5Epq1eltoJk?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
+      "feed": "Google Drive",
+      "type": "video",
+      "mimeType": "video/mp4",
+      "driveId": "1uCqEGt0SuXMe5vcST_e9z5Epq1eltoJk",
+      "isDrive": true,
+      "listenedAt": 1779174549619
+    },
+    {
+      "title": "Delpech.mp3",
+      "date": "",
+      "url": "https://www.googleapis.com/drive/v3/files/1Zat3z-uFKVgD8nPRU_iCzFAXVW49mcmF?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
+      "feed": "Google Drive",
+      "type": "drive",
+      "mimeType": "audio/mpeg",
+      "driveId": "1Zat3z-uFKVgD8nPRU_iCzFAXVW49mcmF",
+      "isDrive": true,
+      "listenedAt": 1779172238481
+    },
+    {
+      "title": "Dave.mp3",
+      "date": "",
+      "url": "https://www.googleapis.com/drive/v3/files/1slAWt-9eZcNGj69U72q51FmpjVSh7eSd?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
+      "feed": "Google Drive",
+      "type": "drive",
+      "mimeType": "audio/mpeg",
+      "driveId": "1slAWt-9eZcNGj69U72q51FmpjVSh7eSd",
+      "isDrive": true,
+      "listenedAt": 1779171229723
+    },
+    {
+      "title": "L'IA se glisse toujours plus près de vous, et vous ne la voyez pas venir",
+      "date": "Mon, 18 May 2026 13:11:42 +0000",
+      "url": "https://audio.ausha.co/5r6YmCqePZG9.mp3?t=1779109426",
+      "feed": "Renaud Dékode",
+      "type": "audio",
+      "duration": "49:09",
+      "description": "A la Une aujourd'hui : Depuis le 15 mai 2026, OpenAI lance une expérience de finances personnelles où ChatGPT peut se connecter à vos comptes bancaires, cartes et portefeuilles-titres (d’abord aux États-Unis pour les abonnés Pro, puis progressivement Plus et grand public). Via une section “Finances” ou la commande @Finances, l’outil agrège portefeuille, dépenses, abonnements et paiements à venir. Point clé : accès strictement en lecture seule, sans virements ni ordres de bourse, et numéros de co",
+      "image": "https://image.ausha.co/OQ9mohPOd9EuHg25L8Bpg3TtUdoeKkW45lWbZGv6_1400x1400.jpeg?t=1779109903",
+      "listenedAt": 1779165588120
+    },
+    {
+      "title": "L'Heure des Pros (Émission du 18/05/2026)",
+      "date": "Mon, 18 May 2026 09:06:49 GMT",
+      "url": "https://sphinx.acast.com/p/open/s/61308a906d38e90019a4bdd1/e/6a0ad6accdab12b21c7436b7/media.mp3",
+      "feed": "L'heure des pros (CNews)",
+      "type": "audio",
+      "duration": "1:48:34",
+      "description": "Pascal Praud et ses invités débattent des grands thèmes de l'actualité dans #HDPros Hébergé par Acast. Visitez acast.com/privacy pour plus d'informations.",
+      "image": "https://assets.pippa.io/shows/61308a906d38e90019a4bdd1/1772202865861-c53363d3-fcef-4ed4-923d-eb772bfcc972.jpeg",
+      "listenedAt": 1779122564646
+    },
+    {
+      "title": "Amy Winehouse - Rehab.mp4",
+      "date": "",
+      "url": "https://www.googleapis.com/drive/v3/files/1kS3vWaASgtokApPkabERxvfRKIOjH03f?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
+      "feed": "Google Drive",
+      "type": "video",
+      "mimeType": "video/mp4",
+      "driveId": "1kS3vWaASgtokApPkabERxvfRKIOjH03f",
+      "isDrive": true,
+      "listenedAt": 1779120642644
+    },
+    {
+      "title": "Pétrarque, sa famille et sa gloire",
+      "date": "Thu, 14 May 2026 21:00:00 +0200",
+      "url": "https://proxycast.radiofrance.fr/0760f712-f39e-4aba-a3f2-891453f91f66/d88dae25-44df-11e5-9fe0-005056a87c89/e3b7d4a0-0106-47a0-bb8a-3c80d36131c5/23118-14.05.2026-ITEMA_24511721-2026C6278E0019-ITE_00159177_RSCE-25-22be82b6bcbce69452650d8e6fdcfa03.m4a",
+      "feed": "Concordance des temps",
+      "type": "audio",
+      "duration": "00:58:22",
+      "description": "durée : 00:58:22 - Concordance des temps - par : Jean-Noël Jeanneney - Poète majeur de la Renaissance naissante, Pétrarque a profondément marqué l’histoire littéraire et intellectuelle de l’Europe. Étienne Anheim lui consacre un « portrait de famille » sensible et original, où les liens affectifs éclairent la genèse d’une œuvre fondatrice. - réalisation : Vincent Abouchar, Jeanne Guérout - invités : Etienne Anheim Historien, directeur d’études à l’EHESS, membre du comité de rédaction des Annales",
+      "image": "https://www.radiofrance.fr/s3/cruiser-production-eu3/2025/09/58027a1f-cf7c-40b2-812e-ea6064834932/1400x1400_sc_concordance-des-temps.jpg",
+      "listenedAt": 1779119825661
+    },
+    {
+      "title": "L'Heure des Pros (Émission du 15/05/2026)",
+      "date": "Fri, 15 May 2026 09:06:40 GMT",
+      "url": "https://sphinx.acast.com/p/open/s/61308a906d38e90019a4bdd1/e/6a06e2233fd6979bfc58265e/media.mp3",
+      "feed": "L'heure des pros (CNews)",
+      "type": "audio",
+      "listenedAt": 1778916206118
+    }
+  ],
+  "positions": {
+    "https://sphinx.acast.com/p/open/s/61308a906d38e90019a4bdd1/e/6a0ad6accdab12b21c7436b7/media.mp3": {
+      "time": 60.400893,
+      "date": 1779122616839
+    },
+    "https://proxycast.radiofrance.fr/0760f712-f39e-4aba-a3f2-891453f91f66/d88dae25-44df-11e5-9fe0-005056a87c89/e3b7d4a0-0106-47a0-bb8a-3c80d36131c5/23118-14.05.2026-ITEMA_24511721-2026C6278E0019-ITE_00159177_RSCE-25-22be82b6bcbce69452650d8e6fdcfa03.m4a": {
+      "time": 756.764416,
+      "date": 1779119850970
+    },
+    "https://www.googleapis.com/drive/v3/files/1kS3vWaASgtokApPkabERxvfRKIOjH03f?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow": {
+      "time": 18.665919,
+      "date": 1779120664453
+    },
+    "https://api.octopus.saooti.com/podcast/download/2514645.mp3?origin=rss": {
+      "time": 5.064623,
+      "date": 1779134221625
+    },
+    "https://api.octopus.saooti.com/podcast/download/2514649.mp3?origin=rss": {
+      "time": 3708.420495,
+      "date": 1779165529617
+    },
+    "https://audio.ausha.co/5r6YmCqePZG9.mp3?t=1779109426": {
+      "time": 2218.701039,
+      "date": 1779171218586
+    },
+    "https://www.googleapis.com/drive/v3/files/1slAWt-9eZcNGj69U72q51FmpjVSh7eSd?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow": {
+      "time": 304.717035,
+      "date": 1779171408601
+    },
+    "https://www.googleapis.com/drive/v3/files/1Zat3z-uFKVgD8nPRU_iCzFAXVW49mcmF?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow": {
+      "time": 1817.387432,
+      "date": 1779173920646
+    },
+    "https://www.googleapis.com/drive/v3/files/1uCqEGt0SuXMe5vcST_e9z5Epq1eltoJk?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow": {
+      "time": 11.441067,
+      "date": 1779174561251
+    },
+    "https://tr.ausha.co/o9ZJkiD1YPe6/api.soundcast.io/v1/stitch/ausha.mp3?tags=62229451a1e06&apiKey=c1a94b3301c64853868548ac73233ca1&podcastUrl=https%3A%2F%2Faudio.ausha.co%2Fo9ZJkiD1YPe6.mp3%3Ft%3D1761298841": {
+      "time": 1260.691288,
+      "date": 1779203843239
+    },
+    "https://www.googleapis.com/drive/v3/files/1SCgDJ-924MmLfjg7MKDvPoYcXBckvdhZ?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow": {
+      "time": 26.1109,
+      "date": 1779204557610
+    },
+    "https://www.googleapis.com/drive/v3/files/1Nrm9F6NUZ0822xiWT4xp8Azns8JEZ_7k?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow": {
+      "time": 22.067886,
+      "date": 1779205997137
+    },
+    "https://sphinx.acast.com/p/open/s/61308a906d38e90019a4bdd1/e/6a0c28d80bb7fec0e3bca595/media.mp3": {
+      "time": 108.68705,
+      "date": 1779206021964
+    },
+    "https://api.octopus.saooti.com/podcast/download/2514643.mp3?origin=rss": {
+      "time": 20.430007,
+      "date": 1779206052948
+    },
+    "https://proxycast.radiofrance.fr/3c2ac6a1-9d34-4483-b23e-a990da1f4040/14312-19.05.2026-ITEMA_24517641-2026C48906S0139-NET_MFC_3D922363-8A09-41E3-9DFE-E3FBB608B74F-21-5f007b7aca3080e8a524517516277f28.mp3": {
+      "time": 287.726386,
+      "date": 1779213739291
+    },
+    "https://audio.audiomeans.fr/file/GMQNcneuDw/6d6a30eb-83ee-449d-a6bb-9e88223e2e57.mp3?_=1776157540&ps=7c44ef0d-1d1c-4230-9da1-b2e4f839108c": {
+      "time": 2087.277054,
+      "date": 1779260669599
+    },
+    "https://proxycast.radiofrance.fr/d4463877-caa3-4507-9399-f5eb00fde027/355586fd-7eaa-433e-979c-98ca082b5fb1/63852b22-3dad-4193-a5a6-941c80f047ed/25657-20.05.2026-ITEMA_24519465-2026F8778S0140-NET_MFI_B361074D-62D0-49D2-A93D-787BD5F7D760-22-06b3e69ec362fe855cdfc3e60e49f7f9.mp3": {
+      "time": 196.996779,
+      "date": 1779260869364
+    },
+    "https://proxycast.radiofrance.fr/d4463877-caa3-4507-9399-f5eb00fde027/355586fd-7eaa-433e-979c-98ca082b5fb1/54051e09-b403-43c4-b68d-0b5b823cdedc/26060-19.05.2026-ITEMA_24517416-2026F8778S0139-NET_MFI_66093FC3-BC92-4525-8ECB-51247E63F9B1-22-6732bc954e4845e824597e90b6403b4c.mp3": {
+      "time": 91.015605,
+      "date": 1779260963082
+    },
+    "http://icecast.skyrock.net/s/natio_mp3_128k": {
+      "time": 5.157852,
+      "date": 1779275308804
+    },
+    "http://icecast.funradio.fr/fun-1-44-128": {
+      "time": 5.141212,
+      "date": 1779275324444
+    },
+    "https://stream-eurodance90.fr/radio/8000/128.mp3?1627933323": {
+      "time": 5.078175,
+      "date": 1779275332400
+    },
+    "http://stream.chantefrance.com/Chante_France": {
+      "time": 15.20696,
+      "date": 1779275350225
+    },
+    "https://ouifm.ice.infomaniak.ch/ouifm-high.mp3": {
+      "time": 151.432739,
+      "date": 1779275508286
+    },
+    "http://novazz.ice.infomaniak.ch/novazz-128.mp3": {
+      "time": 5.088332,
+      "date": 1779275519899
+    },
+    "https://eu1.fastcast4u.com/proxy/kpmxz?mp=/1": {
+      "time": 5.145353,
+      "date": 1779275527270
+    },
+    "http://100radio-80.ice.infomaniak.ch/100radio-80-128.mp3": {
+      "time": 681.474866,
+      "date": 1779276211301
+    },
+    "https://streaming.nrjaudio.fm/ou7xugf3s5gi?origine=playernrj&aw_0_req.userConsentV2=&aw_0_1st.station=NRJ-Hits": {
+      "time": 10.220804,
+      "date": 1779276224254
+    },
+    "http://icecast.radiofrance.fr/franceinfo-hifi.aac": {
+      "time": 126.976,
+      "date": 1779276360780
+    },
+    "https://www.googleapis.com/drive/v3/files/1oioS4PcT1MHpUFj3EAq9RdaydFBCAbkg?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow": {
+      "time": 904.869479,
+      "date": 1779277297982
+    },
+    "https://www.googleapis.com/drive/v3/files/1oLv444DqldLaNfP-5YjGytSlBIb-KRaz?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow": {
+      "time": 323.112827,
+      "date": 1779277625512
+    }
+  }
 }
