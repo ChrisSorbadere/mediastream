@@ -864,22 +864,10 @@ function filterEpisodes() {
 // ═══════════════════════════════════════════
 // GOOGLE DRIVE
 // ═══════════════════════════════════════════
-async function selectDrive(idx) {
+function selectDrive(idx) {
   currentView = { type: 'drive', idx };
   closeSidebar();
   const d = driveFolders[idx];
-
-  // Tentative de récupération du vrai nom du dossier depuis l'API Drive
-  try {
-    const metaUrl = `https://www.googleapis.com/drive/v3/files/${d.id}?fields=name&key=${DRIVE_API_KEY}`;
-    const res = await fetch(metaUrl);
-    const meta = await res.json();
-    if (meta.name && meta.name !== d.name) {
-      d.name = meta.name;
-      saveData();
-    }
-  } catch(e) { /* on garde le nom local */ }
-
   renderSidebar();
   document.getElementById('content-title').textContent = '☁ ' + d.name;
   document.getElementById('btn-add-feed').style.display = 'none';
@@ -1268,9 +1256,9 @@ function showDriveManager(idx) {
   document.getElementById('modal-error').style.display = 'none';
   document.getElementById('modal-body').innerHTML = `
     <div class="modal-label">Nom</div>
-    <input class="modal-input" id="m-name" value="${escapeHTML(d.name)}" />
+    <input class="modal-input" id="m-name" value="${escapeAttr(d.name)}" />
     <div class="modal-label">ID du dossier Drive</div>
-    <input class="modal-input" id="m-id" value="${escapeHTML(d.id)}" />`;
+    <input class="modal-input" id="m-id" value="${escapeAttr(d.id)}" />`;
   document.getElementById('modal-actions').innerHTML = `
     <button class="btn-danger" onclick="deleteDrive(${idx})">Supprimer</button>
     <button class="btn-cancel" onclick="closeModal()">Fermer</button>
@@ -1601,19 +1589,6 @@ function formatDuration(d) {
 // ═══════════════════════════════════════════
 loadData();
 showRecents(); // Page d'accueil
-
-// Récupère en arrière-plan le vrai nom de chaque dossier Drive
-(async () => {
-  let updated = false;
-  for (const d of driveFolders) {
-    try {
-      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${d.id}?fields=name&key=${DRIVE_API_KEY}`);
-      const meta = await res.json();
-      if (meta.name && meta.name !== d.name) { d.name = meta.name; updated = true; }
-    } catch(e) {}
-  }
-  if (updated) { saveData(); renderSidebar(); }
-})();
 </script>
 </body>
 </html>
