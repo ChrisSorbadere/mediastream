@@ -2254,8 +2254,9 @@ function formatDuration(d) {
 }
 
 // Pré-chargement du catalogue audio-livres avec reprise sur interruption
-// Cache page par page → si interrompu, reprend à la page suivante
-const PRELOAD_PROGRESS_KEY = 'mediastream_audiobook_preload_progress_v1';
+// Stockage : Cache Storage API pour les livres (gros volume), localStorage pour la progression légère
+const PRELOAD_PROGRESS_KEY = 'mediastream_audiobook_preload_progress_v2';
+const PRELOAD_PARTIAL_URL = 'https://mediastream-internal/audiobook-preload-partial.json';
 let preloadInProgress = false;
 
 function showPreloadBanner(text) {
@@ -2267,6 +2268,53 @@ function showPreloadBanner(text) {
 }
 function hidePreloadBanner() {
   document.getElementById('preload-banner')?.classList.remove('visible');
+}
+
+async function savePartialProgress(books, page, startedAt) {
+  // Livres → Cache Storage (gros volume)
+  try {
+    if ('caches' in window) {
+      const cache = await caches.open(AUDIOBOOK_CACHE_NAME);
+      const response = new Response(JSON.stringify(books), { headers: { 'Content-Type': 'application/json' } });
+      await cache.put(PRELOAD_PARTIAL_URL, response);
+    }
+  } catch(e) { /* silencieux */ }
+  // Métadonnées seulement → localStorage (très léger)
+  try {
+    localStorage.setItem(PRELOAD_PROGRESS_KEY, JSON.stringify({ page, startedAt, count: books.length }));
+  } catch(e) { /* silencieux */ }
+}
+
+async function loadPartialProgress() {
+  try {
+    const stored = localStorage.getItem(PRELOAD_PROGRESS_KEY);
+    if (!stored) return null;
+    const meta = JSON.parse(stored);
+    if (!meta.startedAt || (Date.now() - meta.startedAt > AUDIOBOOK_CACHE_DURATION)) {
+      localStorage.removeItem(PRELOAD_PROGRESS_KEY);
+      return null;
+    }
+    // Récupère les livres depuis Cache Storage
+    if ('caches' in window) {
+      const cache = await caches.open(AUDIOBOOK_CACHE_NAME);
+      const response = await cache.match(PRELOAD_PARTIAL_URL);
+      if (response) {
+        const books = await response.json();
+        return { books, page: meta.page, startedAt: meta.startedAt };
+      }
+    }
+  } catch(e) {}
+  return null;
+}
+
+async function clearPartialProgress() {
+  try { localStorage.removeItem(PRELOAD_PROGRESS_KEY); } catch(e) {}
+  try {
+    if ('caches' in window) {
+      const cache = await caches.open(AUDIOBOOK_CACHE_NAME);
+      await cache.delete(PRELOAD_PARTIAL_URL);
+    }
+  } catch(e) {}
 }
 
 async function preloadAudiobookCatalog() {
@@ -2281,22 +2329,11 @@ async function preloadAudiobookCatalog() {
       return;
     }
 
-    // Récupère l'état du téléchargement précédent (reprise)
-    let savedProgress = { books: [], page: 0, startedAt: 0 };
-    try {
-      const stored = localStorage.getItem(PRELOAD_PROGRESS_KEY);
-      if (stored) {
-        const data = JSON.parse(stored);
-        // Si la reprise date de moins de 24h, on continue. Sinon on repart de zéro.
-        if (data.startedAt && (Date.now() - data.startedAt < AUDIOBOOK_CACHE_DURATION)) {
-          savedProgress = data;
-        }
-      }
-    } catch(e) {}
-
-    const all = savedProgress.books || [];
-    const startPage = savedProgress.page || 0;
-    const startedAt = savedProgress.startedAt || Date.now();
+    // Reprise éventuelle
+    const saved = await loadPartialProgress();
+    const all = saved?.books || [];
+    const startPage = saved?.page || 0;
+    const startedAt = saved?.startedAt || Date.now();
     const PAGE_SIZE = 500;
     const MAX_PAGES = 30;
 
@@ -2312,33 +2349,20 @@ async function preloadAudiobookCatalog() {
         if (!pageBooks.length) break;
         all.push(...pageBooks);
 
-        // Sauvegarde de progression : si on est interrompu, on reprendra ici
-        try {
-          localStorage.setItem(PRELOAD_PROGRESS_KEY, JSON.stringify({
-            books: all,
-            page: page + 1,
-            startedAt,
-          }));
-        } catch(e) {
-          // Quota dépassé (les 15000 livres font ~10Mo) → on bascule sur Cache Storage
-          // En cas d'échec localStorage, on continue quand même en RAM
-        }
+        // Sauvegarde progression (livres dans Cache Storage, méta dans localStorage)
+        await savePartialProgress(all, page + 1, startedAt);
 
         showPreloadBanner(`Mise à jour catalogue audio-livres (${all.length} / ~15000)…`);
 
         if (pageBooks.length < PAGE_SIZE) break;
-      } catch(e) {
-        // Erreur réseau → on s'arrête, mais la progression est sauvegardée pour la prochaine fois
-        break;
-      }
+      } catch(e) { break; }
     }
 
     if (all.length > 0) {
       audiobookCatalogCache = all;
       audiobookCatalogCacheTime = Date.now();
       await saveAudiobookCacheToStorage();
-      // Téléchargement complet réussi → on nettoie la progression
-      try { localStorage.removeItem(PRELOAD_PROGRESS_KEY); } catch(e) {}
+      await clearPartialProgress();
     }
   } catch(e) {
     console.warn('Pré-chargement audio-livres:', e.message);
@@ -2351,6 +2375,9 @@ async function preloadAudiobookCatalog() {
 // ═══════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════
+// Nettoie l'ancienne version v1 du pré-chargement (qui pouvait saturer localStorage)
+try { localStorage.removeItem('mediastream_audiobook_preload_progress_v1'); } catch(e) {}
+
 loadData();
 showRecents();
 
