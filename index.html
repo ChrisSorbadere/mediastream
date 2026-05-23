@@ -914,31 +914,55 @@ async function showAudiobooks() {
 }
 
 // Cache pour éviter de recharger le catalogue à chaque recherche
+// Utilise Cache Storage API (capacité ~Go) au lieu de localStorage (5-10Mo)
 const AUDIOBOOK_CACHE_KEY = 'mediastream_audiobook_cache_v1';
+const AUDIOBOOK_CACHE_NAME = 'mediastream-audiobooks-v1';
+const AUDIOBOOK_CACHE_URL = 'https://mediastream-internal/audiobook-catalog.json';
 let audiobookCatalogCache = null;
 let audiobookCatalogCacheTime = 0;
 const AUDIOBOOK_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 heures
 
-// Restaure le cache depuis localStorage au chargement du module
-(function restoreAudiobookCache() {
+// Restaure le cache depuis Cache Storage au démarrage (asynchrone)
+async function restoreAudiobookCache() {
   try {
-    const stored = localStorage.getItem(AUDIOBOOK_CACHE_KEY);
-    if (stored) {
-      const data = JSON.parse(stored);
-      if (data.time && data.books && (Date.now() - data.time < AUDIOBOOK_CACHE_DURATION)) {
-        audiobookCatalogCache = data.books;
-        audiobookCatalogCacheTime = data.time;
-      } else {
-        localStorage.removeItem(AUDIOBOOK_CACHE_KEY);
-      }
+    if (!('caches' in window)) return;
+    const cache = await caches.open(AUDIOBOOK_CACHE_NAME);
+    const response = await cache.match(AUDIOBOOK_CACHE_URL);
+    if (!response) return;
+    const data = await response.json();
+    if (data.time && data.books && (Date.now() - data.time < AUDIOBOOK_CACHE_DURATION)) {
+      audiobookCatalogCache = data.books;
+      audiobookCatalogCacheTime = data.time;
+    } else {
+      // Cache périmé, on le supprime
+      await cache.delete(AUDIOBOOK_CACHE_URL);
     }
-  } catch(e) { /* ignore */ }
-})();
+  } catch(e) { console.warn('Restauration cache audio-livres:', e.message); }
+}
 
-function saveAudiobookCacheToStorage() {
+// Lance la restauration au chargement (le résultat est utilisé plus tard quand l'utilisateur ouvre la section)
+restoreAudiobookCache();
+
+async function clearAudiobookCache() {
+  if (!confirm('Vider le cache des audio-livres ?\n(Sera rechargé lors de la prochaine ouverture)')) return;
   try {
+    if ('caches' in window) {
+      const cache = await caches.open(AUDIOBOOK_CACHE_NAME);
+      await cache.delete(AUDIOBOOK_CACHE_URL);
+    }
+    localStorage.removeItem(AUDIOBOOK_CACHE_KEY); // nettoie l'ancienne version aussi
+    audiobookCatalogCache = null;
+    audiobookCatalogCacheTime = 0;
+    alert('Cache vidé.');
+  } catch(e) {
+    alert('Erreur : ' + e.message);
+  }
+}
+
+async function saveAudiobookCacheToStorage() {  try {
+    if (!('caches' in window) || !audiobookCatalogCache) return;
     // On garde seulement les champs essentiels pour limiter la taille
-    const slimBooks = (audiobookCatalogCache || []).map(b => ({
+    const slimBooks = audiobookCatalogCache.map(b => ({
       id: b.id,
       title: b.title,
       authors: b.authors,
@@ -951,9 +975,12 @@ function saveAudiobookCacheToStorage() {
       description: (b.description || '').slice(0, 300),
     }));
     const payload = JSON.stringify({ time: audiobookCatalogCacheTime, books: slimBooks });
-    localStorage.setItem(AUDIOBOOK_CACHE_KEY, payload);
+    const cache = await caches.open(AUDIOBOOK_CACHE_NAME);
+    const response = new Response(payload, { headers: { 'Content-Type': 'application/json' } });
+    await cache.put(AUDIOBOOK_CACHE_URL, response);
+    // Nettoie l'ancienne version localStorage si elle existe
+    try { localStorage.removeItem(AUDIOBOOK_CACHE_KEY); } catch(e) {}
   } catch(e) {
-    // Si quota dépassé, on ignore (le cache restera en RAM uniquement)
     console.warn('Cache audio-livres non persisté:', e.message);
   }
 }
@@ -1091,7 +1118,12 @@ async function loadLibrivoxCatalog() {
   const box = document.getElementById('ab-list');
   box.innerHTML = `<div class="loading-text">Chargement du catalogue<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span><br><small style="color:var(--text3);">Première fois : ~1 minute. Ensuite instantané pendant 24h.</small></div>`;
 
-  // Charger le catalogue complet via LibriVox API (par pages de 500 jusqu'à 6000 livres)
+  // S'assure que la restauration du cache est terminée avant de décider
+  if (!audiobookCatalogCache) {
+    await restoreAudiobookCache();
+  }
+
+  // Charger le catalogue complet via LibriVox API (par pages de 500 jusqu'à 15000 livres)
   const cacheValid = audiobookCatalogCache && (Date.now() - audiobookCatalogCacheTime < AUDIOBOOK_CACHE_DURATION);
   if (!cacheValid) {
     const all = [];
@@ -2015,7 +2047,7 @@ function showSettingsModal() {
     <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="exportData()">📥 Exporter (JSON)</button>
     <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="document.getElementById('import-file').click()">📤 Importer un JSON</button>
     <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importData(event)" />
-    <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="if(confirm('Vider le cache des audio-livres ?\\n(Sera rechargé lors de la prochaine ouverture)')){localStorage.removeItem(AUDIOBOOK_CACHE_KEY);audiobookCatalogCache=null;alert('Cache vidé.');}">🗑 Vider le cache audio-livres</button>
+    <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="clearAudiobookCache()">🗑 Vider le cache audio-livres</button>
     <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="if(confirm('Vider l\\'historique ?')){localStorage.removeItem(HISTORY_KEY);location.reload();}">🗑 Vider l'historique</button>
     <button class="btn-danger" style="width:100%;" onclick="if(confirm('Tout réinitialiser ?')){localStorage.clear();location.reload();}">⚠ Tout réinitialiser</button>
     <div class="modal-label" style="margin-top:14px;">À propos</div>
