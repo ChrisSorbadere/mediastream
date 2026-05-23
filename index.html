@@ -85,6 +85,12 @@
   .ep-icon-btn { background: var(--bg4); border: 1px solid var(--border); color: var(--text2); cursor: pointer; width: 30px; height: 30px; border-radius: 4px; font-size: 13px; display: flex; align-items: center; justify-content: center; padding: 0; }
   .ep-icon-btn:hover { background: var(--accent2); color: white; border-color: var(--accent); }
 
+  /* Bandeau de pré-chargement audio-livres */
+  .preload-banner { display: none; align-items: center; gap: 8px; padding: 6px 12px; background: rgba(139,92,246,0.15); border-bottom: 1px solid rgba(139,92,246,0.3); font-size: 12px; color: var(--purple); }
+  .preload-banner.visible { display: flex; }
+  .preload-banner .preload-spinner { width: 12px; height: 12px; border: 2px solid rgba(139,92,246,0.3); border-top-color: var(--purple); border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
 
   /* PLAYER */
   .player { background: #06090f; border-top: 1px solid var(--border); padding: 10px 16px 12px; flex-shrink: 0; padding-bottom: calc(12px + env(safe-area-inset-bottom)); box-shadow: 0 -4px 12px rgba(0,0,0,0.4); }
@@ -177,6 +183,11 @@
     <button class="settings-btn" onclick="showDiscoverModal()" title="Découvrir un podcast">🔍</button>
   </div>
 </header>
+
+<div class="preload-banner" id="preload-banner">
+  <div class="preload-spinner"></div>
+  <span id="preload-text">Mise à jour du catalogue audio-livres…</span>
+</div>
 
 <div class="main">
   <div class="overlay-bg" id="overlay-bg" onclick="toggleSidebar()"></div>
@@ -2242,26 +2253,56 @@ function formatDuration(d) {
   return d;
 }
 
-// ═══════════════════════════════════════════
-// INIT
-// ═══════════════════════════════════════════
-loadData();
-showRecents(); // Page d'accueil
+// Pré-chargement du catalogue audio-livres avec reprise sur interruption
+// Cache page par page → si interrompu, reprend à la page suivante
+const PRELOAD_PROGRESS_KEY = 'mediastream_audiobook_preload_progress_v1';
+let preloadInProgress = false;
 
-// Pré-chargement silencieux du catalogue audio-livres en arrière-plan
-// Lancé 3 secondes après le démarrage pour ne pas ralentir l'ouverture de l'app
-setTimeout(async () => {
+function showPreloadBanner(text) {
+  const banner = document.getElementById('preload-banner');
+  if (banner) {
+    document.getElementById('preload-text').textContent = text;
+    banner.classList.add('visible');
+  }
+}
+function hidePreloadBanner() {
+  document.getElementById('preload-banner')?.classList.remove('visible');
+}
+
+async function preloadAudiobookCatalog() {
+  if (preloadInProgress) return;
+  preloadInProgress = true;
+
   try {
-    // Attend que la restauration du cache soit terminée
     await restoreAudiobookCache();
-    // Si le cache est valide (< 24h), on ne fait rien
     const cacheValid = audiobookCatalogCache && (Date.now() - audiobookCatalogCacheTime < AUDIOBOOK_CACHE_DURATION);
-    if (cacheValid) return;
-    // Sinon, on télécharge silencieusement le catalogue
-    const all = [];
+    if (cacheValid) {
+      preloadInProgress = false;
+      return;
+    }
+
+    // Récupère l'état du téléchargement précédent (reprise)
+    let savedProgress = { books: [], page: 0, startedAt: 0 };
+    try {
+      const stored = localStorage.getItem(PRELOAD_PROGRESS_KEY);
+      if (stored) {
+        const data = JSON.parse(stored);
+        // Si la reprise date de moins de 24h, on continue. Sinon on repart de zéro.
+        if (data.startedAt && (Date.now() - data.startedAt < AUDIOBOOK_CACHE_DURATION)) {
+          savedProgress = data;
+        }
+      }
+    } catch(e) {}
+
+    const all = savedProgress.books || [];
+    const startPage = savedProgress.page || 0;
+    const startedAt = savedProgress.startedAt || Date.now();
     const PAGE_SIZE = 500;
     const MAX_PAGES = 30;
-    for (let page = 0; page < MAX_PAGES; page++) {
+
+    showPreloadBanner(`Mise à jour catalogue audio-livres (${all.length} / ~15000)…`);
+
+    for (let page = startPage; page < MAX_PAGES; page++) {
       const params = new URLSearchParams({ format: 'json', extended: '1', limit: String(PAGE_SIZE), offset: String(page * PAGE_SIZE) });
       const url = `${AUDIOBOOK_API}/?${params.toString()}`;
       try {
@@ -2270,16 +2311,52 @@ setTimeout(async () => {
         const pageBooks = data.books || [];
         if (!pageBooks.length) break;
         all.push(...pageBooks);
+
+        // Sauvegarde de progression : si on est interrompu, on reprendra ici
+        try {
+          localStorage.setItem(PRELOAD_PROGRESS_KEY, JSON.stringify({
+            books: all,
+            page: page + 1,
+            startedAt,
+          }));
+        } catch(e) {
+          // Quota dépassé (les 15000 livres font ~10Mo) → on bascule sur Cache Storage
+          // En cas d'échec localStorage, on continue quand même en RAM
+        }
+
+        showPreloadBanner(`Mise à jour catalogue audio-livres (${all.length} / ~15000)…`);
+
         if (pageBooks.length < PAGE_SIZE) break;
-      } catch(e) { break; }
+      } catch(e) {
+        // Erreur réseau → on s'arrête, mais la progression est sauvegardée pour la prochaine fois
+        break;
+      }
     }
+
     if (all.length > 0) {
       audiobookCatalogCache = all;
       audiobookCatalogCacheTime = Date.now();
       await saveAudiobookCacheToStorage();
+      // Téléchargement complet réussi → on nettoie la progression
+      try { localStorage.removeItem(PRELOAD_PROGRESS_KEY); } catch(e) {}
     }
-  } catch(e) { /* échec silencieux, le chargement normal prendra le relais */ }
-}, 3000);
+  } catch(e) {
+    console.warn('Pré-chargement audio-livres:', e.message);
+  } finally {
+    preloadInProgress = false;
+    hidePreloadBanner();
+  }
+}
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+loadData();
+showRecents();
+
+// Lance le pré-chargement 3 secondes après le démarrage
+// Si interrompu (écran éteint, app fermée), reprise au prochain lancement
+setTimeout(() => { preloadAudiobookCatalog(); }, 3000);
 </script>
 </body>
 </html>
