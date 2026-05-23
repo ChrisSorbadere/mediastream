@@ -1089,13 +1089,13 @@ function playAudiociteBook(book) {
 
 async function loadLibrivoxCatalog() {
   const box = document.getElementById('ab-list');
-  box.innerHTML = `<div class="loading-text">Chargement du catalogue<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span><br><small style="color:var(--text3);">Première fois : ~20 secondes. Ensuite instantané pendant 24h.</small></div>`;
+  box.innerHTML = `<div class="loading-text">Chargement du catalogue<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span><br><small style="color:var(--text3);">Première fois : ~15 secondes. Ensuite instantané pendant 24h.</small></div>`;
 
-  // Clé de cache spécifique à la langue choisie
+  // Cache spécifique à la langue (clé différente par langue)
   const langKey = audiobookFilters.language || 'all';
-  const cacheKeyFull = AUDIOBOOK_CACHE_KEY + '_' + langKey;
+  const cacheKeyFull = AUDIOBOOK_CACHE_KEY + '_archive_' + langKey;
 
-  // Restaure depuis storage le cache spécifique à cette langue
+  // Vérifie cache localStorage
   let books = null;
   try {
     const stored = localStorage.getItem(cacheKeyFull);
@@ -1109,10 +1109,10 @@ async function loadLibrivoxCatalog() {
     }
   } catch(e) {}
 
+  // Si pas en cache, on télécharge via Archive.org Search API
   if (!books) {
-    // Utilise Archive.org Search API qui supporte le filtre langue côté serveur
     books = await fetchArchiveLibrivoxByLanguage(audiobookFilters.language, box);
-    if (books.length) {
+    if (books.length > 0) {
       try {
         const slim = books.map(b => ({
           id: b.id,
@@ -1121,17 +1121,15 @@ async function loadLibrivoxCatalog() {
           language: b.language,
           genres: b.genres,
           totaltime: b.totaltime,
-          num_sections: b.num_sections,
           url_iarchive: b.url_iarchive,
           identifier: b.identifier,
-          description: (b.description || '').slice(0, 300),
         }));
         localStorage.setItem(cacheKeyFull, JSON.stringify({ time: Date.now(), books: slim }));
       } catch(e) { console.warn('Cache non persisté:', e.message); }
     }
   }
 
-  // Filtres côté client (recherche partielle)
+  // Filtres côté client
   if (audiobookFilters.genre) {
     books = books.filter(b => {
       const genresStr = (b.genres || []).map(g => (typeof g === 'string' ? g : g.name)).join(' ').toLowerCase();
@@ -1194,7 +1192,6 @@ async function loadLibrivoxCatalog() {
         <div class="ep-meta">
           <span class="ep-source">${escapeHTML(authors || 'Anonyme')}</span>
           ${totalTime ? `<span>${escapeHTML(totalTime)}</span>` : ''}
-          ${book.num_sections ? `<span>${book.num_sections} chapitres</span>` : ''}
         </div>
       </div>
       <div class="ep-actions-right">${starBtn}</div>`;
@@ -1211,18 +1208,21 @@ async function loadLibrivoxCatalog() {
 }
 
 async function fetchArchiveLibrivoxByLanguage(language, progressBox) {
-  // Archive.org Search API : filtre langue côté serveur, donc on récupère uniquement les livres dans la bonne langue
+  // URL simplifiée et corrigée : pas de mediatype redondant, pas de guillemets, pas de tri spécial
   const all = [];
-  const PAGE_SIZE = 200;
-  const MAX_PAGES = 20; // jusqu'à 4000 livres dans une langue donnée
-  const queryParts = ['collection:librivoxaudio', 'mediatype:audio'];
-  if (language) queryParts.push(`language:"${language}"`);
-  const baseQuery = queryParts.join(' AND ');
+  const PAGE_SIZE = 500;
+  const MAX_PAGES = 10; // jusqu'à 5000 livres dans une langue (largement suffisant)
+  let queryStr = 'collection:librivoxaudio';
+  if (language) queryStr += ` AND language:${language}`;
 
   for (let page = 1; page <= MAX_PAGES; page++) {
-    const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(baseQuery)}&fl=identifier,title,creator,description,subject,language,downloads,runtime&sort=titleSorter+asc&rows=${PAGE_SIZE}&page=${page}&output=json`;
+    const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(queryStr)}&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=creator&fl%5B%5D=language&fl%5B%5D=subject&fl%5B%5D=runtime&rows=${PAGE_SIZE}&page=${page}&output=json`;
     try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
+      const res = await fetch(url, { signal: AbortSignal.timeout(25000) });
+      if (!res.ok) {
+        console.warn(`Archive.org HTTP ${res.status} page ${page}`);
+        break;
+      }
       const data = await res.json();
       const docs = data.response?.docs || [];
       if (!docs.length) break;
@@ -1231,12 +1231,14 @@ async function fetchArchiveLibrivoxByLanguage(language, progressBox) {
           id: d.identifier,
           identifier: d.identifier,
           title: d.title || '',
-          authors: Array.isArray(d.creator) ? d.creator.map(c => ({ first_name: '', last_name: c })) : (d.creator ? [{ first_name: '', last_name: d.creator }] : []),
-          description: Array.isArray(d.description) ? d.description[0] : (d.description || ''),
-          language: d.language || '',
-          genres: Array.isArray(d.subject) ? d.subject.map(s => ({ name: s })) : (d.subject ? [{ name: d.subject }] : []),
+          authors: Array.isArray(d.creator) 
+            ? d.creator.map(c => ({ first_name: '', last_name: c })) 
+            : (d.creator ? [{ first_name: '', last_name: d.creator }] : []),
+          language: Array.isArray(d.language) ? d.language[0] : (d.language || ''),
+          genres: Array.isArray(d.subject) 
+            ? d.subject.map(s => ({ name: s })) 
+            : (d.subject ? [{ name: d.subject }] : []),
           totaltime: d.runtime || '',
-          num_sections: 0,
           url_iarchive: `https://archive.org/details/${d.identifier}`,
         });
       });
@@ -1244,7 +1246,10 @@ async function fetchArchiveLibrivoxByLanguage(language, progressBox) {
         progressBox.innerHTML = `<div class="loading-text">Chargement<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span><br><small style="color:var(--text3);">${all.length} livres récupérés…</small></div>`;
       }
       if (docs.length < PAGE_SIZE) break;
-    } catch(e) { console.warn(`Échec page ${page}:`, e); break; }
+    } catch(e) {
+      console.warn(`Échec page ${page}:`, e);
+      break;
+    }
   }
   return all;
 }
