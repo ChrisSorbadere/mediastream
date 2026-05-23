@@ -217,19 +217,67 @@
     {
       "name": "🇨🇵 Variétés",
       "id": "1_lhen0C0nUwhiFy3jxJowH73pDd362sW"
+    },
+    {
+      "name": "💤 Dormir",
+      "id": "1ZFnT1ML1r5y_BTOh6gM3tJE2jrEgQd4y"
     }
   ],
   "history": [
     {
-      "title": "Années 70 -1.mp3",
+      "title": "Puces neuralink, humains augmentés… : Le transhumanisme est-il déjà là ?",
+      "date": "Thu, 21 May 2026 20:30:00 +0000",
+      "url": "https://tr.ausha.co/nrg46uR2VlKe/api.soundcast.io/v1/stitch/ausha.mp3?packId=figaro_020&apiKey=c1a94b3301c64853868548ac73233ca1&podcastUrl=https%3A%2F%2Faudio.ausha.co%2Fnrg46uR2VlKe.mp3%3Ft%3D1779205909",
+      "feed": "Le Club Le Figaro Idées",
+      "type": "audio",
+      "duration": "53:39",
+      "description": "Le transhumanisme est-il déjà là ? Retrouvez le Club le Figaro Idées, présenté par Eugénie Bastié. Elle reçoit Laurent Alexandre, médecin et cofondateur de Doctolib, et Bruno Patino, président de la chaine Arte. Hébergé par Ausha. Visitez ausha.co/politique-de-confidentialite pour plus d'informations.",
+      "image": "https://image.ausha.co/zSjV00HPt0fcictQW5KDnlL4sd9bOr5i2j65Mvfs_1400x1400.jpeg?t=1770042655",
+      "listenedAt": 1779504487375
+    },
+    {
+      "title": "432 Hz - Plongez dans un sommeil profond en 3 minutes - Guérissez votre subconscient, votre corps.mp3",
       "date": "",
-      "url": "https://www.googleapis.com/drive/v3/files/1oLv444DqldLaNfP-5YjGytSlBIb-KRaz?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
+      "url": "https://www.googleapis.com/drive/v3/files/1rLBwrpUst2EBJGbAUfAfXC0Desjw9iLF?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
       "feed": "Google Drive",
       "type": "drive",
       "mimeType": "audio/mpeg",
-      "driveId": "1oLv444DqldLaNfP-5YjGytSlBIb-KRaz",
+      "driveId": "1rLBwrpUst2EBJGbAUfAfXC0Desjw9iLF",
       "isDrive": true,
-      "listenedAt": 1779277299690
+      "listenedAt": 1779483022457
+    },
+    {
+      "title": "536 : la pire année de l'Histoire ?",
+      "date": "Fri, 22 May 2026 13:30:00 GMT",
+      "url": "https://audio.audiomeans.fr/file/GMQNcneuDw/100d4de1-4f80-4b10-bb87-4e92e57a5465.mp3?_=1779292082",
+      "feed": "Entrez dans l'histoire (RTL)",
+      "type": "audio",
+      "duration": "20:13",
+      "description": "Cette année là, le monde semble basculer dans la pénombre. Dans une grande partie de l'hémisphère nord, le soleil devient pâle, les récoltes s'effondrent, le bétail meurt et la famine s'installe, annonçant une décennie de catastrophes climatiques et d'épidémies. Découvrez l'an 536, que certains scientifiques considèrent comme la « pire année de l'histoire », un moment qui ressemble au début de la fin du monde. Crédits : Lorànt Deutsch, Éric Lange. Hébergé par Audiomeans. Visitez audiomeans.fr/po",
+      "image": "https://static.audiomeans.fr/img/episode/492f59be-ce44-47bb-bfa9-621bc765abd2.jpg",
+      "listenedAt": 1779481772684
+    },
+    {
+      "title": "3H Ondes Delta Sommeil Relaxante  énergie positive, yoga, corps détendu, musique de paix intérieure.mp3",
+      "date": "",
+      "url": "https://www.googleapis.com/drive/v3/files/1CoUc_lhwhxr3kWEui4XwADMiYLc-PUCN?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
+      "feed": "Google Drive",
+      "type": "drive",
+      "mimeType": "audio/mpeg",
+      "driveId": "1CoUc_lhwhxr3kWEui4XwADMiYLc-PUCN",
+      "isDrive": true,
+      "listenedAt": 1779476511322
+    },
+    {
+      "title": "🧠 Ondas Binaurais Delta - Δ - 0,1Hz - 4Hz Sono profundo; Alívio de dor; Acesso ao subconsciente.mp3",
+      "date": "",
+      "url": "https://www.googleapis.com/drive/v3/files/1HCLvX9weJqVjbjLTKBJYXZkNYFMzT718?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
+      "feed": "Google Drive",
+      "type": "drive",
+      "mimeType": "audio/mpeg",
+      "driveId": "1HCLvX9weJqVjbjLTKBJYXZkNYFMzT718",
+      "isDrive": true,
+      "listenedAt": 1779474808308
     },
     {
       "title": "Années 60.mp3",
@@ -240,7 +288,194 @@
       "mimeType": "audio/mpeg",
       "driveId": "1oioS4PcT1MHpUFj3EAq9RdaydFBCAbkg",
       "isDrive": true,
-      "listenedAt": 1779276909377
+      "listenedAt": 1779425432754
+    },
+    {
+      "title": "Boson de Higgs : en attendant Guido Tonelli",
+      "date": "Wed, 20 May 2026 16:58:45 +0200",
+      "url": "https://proxycast.radiofrance.fr/482d71cb-266c-442d-b748-8fa221a578e9/14312-20.05.2026-ITEMA_24519034-2026C48906S0140-NET_MFC_09C2ECF5-82CD-40CC-BA8C-95F03951C76A-21-74602872404a38073e31c6abcb04f053.mp3",
+      "feed": "La Science, CQFD",
+      "type": "audio",
+      "duration": "00:58:43",
+      "description": "durée : 00:58:43 - La Science, CQFD - par : Natacha Triou, Antoine Beauchamp - Physicien au CERN, Guido Tonelli a dirigé l'expérience CMS qui a permis de découvrir le boson de Higgs : la particule qui explique pourquoi la matière a une masse. Sans elle, ni atomes, ni étoiles, ni vie. Quel est le rôle théorique de cette particule et quels sont les enjeux de sa découverte? - réalisation : Olivier Bétard - invités : Guido Tonelli Physicien des particules, chercheur invité au CERN et professeur à l’",
+      "image": "https://www.radiofrance.fr/s3/cruiser-production/2022/08/50c31dc5-9e16-482d-95f3-f8f0b69eb3ad/1400x1400_la-science-cqfd.jpg",
+      "listenedAt": 1779413618484
+    },
+    {
+      "title": "Otto Lilienthal, un drôle d'oiseau",
+      "date": "Thu, 21 May 2026 13:00:00 GMT",
+      "url": "https://audio.audiomeans.fr/file/GMQNcneuDw/c73bb418-a19e-4a22-9492-0e130d1711c8.mp3?_=1776158001&ps=7c44ef0d-1d1c-4230-9da1-b2e4f839108c",
+      "feed": "Au cœur de l'histoire (Europe 1)",
+      "type": "audio",
+      "duration": "39:41",
+      "description": "Stéphane Bern raconte un pionnier, un passionné d’aviation, un ingénieur qui n’a pas eu peur, qui a conquis les airs sans en avoir l’air justement. Ou la véritable histoire d'Otto Lilienthal, un drôle d'oiseau. Depuis quand les hommes chérissent-ils le rêve de toucher le ciel ? Quels ont été les apports scientifiques des expériences menées par Otto Lilienthal à la fin du 19e siècle ? L’avenir est-il à l’aviation non-motorisée dont il est le pionnier ? Pour en parler, Stéphane Bern reçoit Gérard ",
+      "image": "https://static.audiomeans.fr/img/episode/8827f0ad-e9e5-4abe-a7e6-053fcc32ee42.jpg",
+      "listenedAt": 1779412655088
+    },
+    {
+      "title": "Carburants : la crise s'aggrave, les caisses sont vides... - L'intégrale -",
+      "date": "Thu, 21 May 2026 18:54:17 +0200",
+      "url": "https://api.octopus.saooti.com/podcast/download/2521479.mp3?origin=rss",
+      "feed": "C dans l'air",
+      "type": "audio",
+      "duration": "01:04:05",
+      "description": "C dans l'air du 21 mai 2026 - Carburants : la crise s'aggrave, les caisses sont vides... L'impact économique du conflit au Moyen-Orient risque de se faire davantage sentir cet été. Le marché pétrolier pourrait entrer dans une « zone rouge », avec une pénurie d'offre en « juillet ou en août », en l'absence d'issue durable au conflit au Moyen-Orient, a alerté ce jeudi le directeur exécutif de l'Agence internationale de l'énergie, Faith Birol. Alors que la crise des carburants s’aggrave, en France,",
+      "image": "https://storage.gra.cloud.ovh.net/v1/AUTH_1db17c9a9c714ce39f508d240f11d920/octopus-bucket/6889b58c-454d-4b39-be81-d14254401a23/d33f0971-798e-402a-9285-219cb09625ad.jpg",
+      "listenedAt": 1779393058025
+    },
+    {
+      "title": "Cuba et le Groenland, les prochaines cibles de la «doctrine Donroe»?",
+      "date": "Wed, 20 May 2026 13:24:07 GMT",
+      "url": "https://traffic.360.audion.fm/4840e1a2-c33d-4233-a501-a37d22c0a3fb.mp3",
+      "feed": "Le monde devant soi",
+      "type": "audio",
+      "duration": "00:12:52",
+      "description": "De retour de Chine , Donald Trump continue de tergiverser sur la manière de gérer la guerre en Iran. Il n'a pas pour autant oublié ses visées sur les territoires proches des États-Unis… On sait que, depuis le début de son second mandat, le dirigeant républicain a développé une nouvelle doctrine de domination états-unienne sur les Amériques (dans lesquelles il inclut le Groenland), la «doctrine Donroe» , un mot-valise qui fait directement référence au 5e président des États-Unis, James Monroe (18",
+      "image": "https://artworks.360.audion.fm/3a6fd6de-6f1f-457f-b22f-3ec9e1d122a6.jpg?width=3000&height=3000",
+      "listenedAt": 1779349764118
+    },
+    {
+      "title": "BETH - Dime (2003) Videoclip.mp4",
+      "date": "",
+      "url": "https://www.googleapis.com/drive/v3/files/1b9S-zDKMr3ext7IRjeYI53-ANvM9sfaC?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
+      "feed": "Google Drive",
+      "type": "video",
+      "mimeType": "video/mp4",
+      "driveId": "1b9S-zDKMr3ext7IRjeYI53-ANvM9sfaC",
+      "isDrive": true,
+      "listenedAt": 1779349741696
+    },
+    {
+      "title": "Amy Winehouse - You Know I'm No Good.mp4",
+      "date": "",
+      "url": "https://www.googleapis.com/drive/v3/files/1uCqEGt0SuXMe5vcST_e9z5Epq1eltoJk?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
+      "feed": "Google Drive",
+      "type": "video",
+      "mimeType": "video/mp4",
+      "driveId": "1uCqEGt0SuXMe5vcST_e9z5Epq1eltoJk",
+      "isDrive": true,
+      "listenedAt": 1779349735639
+    },
+    {
+      "title": "Aragon par Mots et Merveilles ",
+      "date": "",
+      "url": "https://www.googleapis.com/drive/v3/files/1U1APShEz7OWVLwdVU9EThpYkUqsZddbf?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
+      "feed": "Google Drive",
+      "type": "video",
+      "mimeType": "video/mp4",
+      "driveId": "1U1APShEz7OWVLwdVU9EThpYkUqsZddbf",
+      "isDrive": true,
+      "listenedAt": 1779349713574
+    },
+    {
+      "title": "Aragon par d'Ormesson",
+      "date": "",
+      "url": "https://www.googleapis.com/drive/v3/files/1X2cyQtC3r3Qk7y7ixNEj7gh5XLmBTJe7?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
+      "feed": "Google Drive",
+      "type": "video",
+      "mimeType": "video/mp4",
+      "driveId": "1X2cyQtC3r3Qk7y7ixNEj7gh5XLmBTJe7",
+      "isDrive": true,
+      "listenedAt": 1779349657387
+    },
+    {
+      "title": "Tom Odell - Another Love (Official Video).mp4",
+      "date": "",
+      "url": "https://www.googleapis.com/drive/v3/files/1Olum92RwL5GzDmz5EzGI2QdEKyJuJj1O?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
+      "feed": "Google Drive",
+      "type": "video",
+      "mimeType": "video/mp4",
+      "driveId": "1Olum92RwL5GzDmz5EzGI2QdEKyJuJj1O",
+      "isDrive": true,
+      "listenedAt": 1779338198546
+    },
+    {
+      "title": "The Weeknd - Save Your Tears (Official Music Video).mp4",
+      "date": "",
+      "url": "https://www.googleapis.com/drive/v3/files/1PLwjiylC-s2NKixz6ZrL6H4Wp_vxJi2A?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
+      "feed": "Google Drive",
+      "type": "video",
+      "mimeType": "video/mp4",
+      "driveId": "1PLwjiylC-s2NKixz6ZrL6H4Wp_vxJi2A",
+      "isDrive": true,
+      "listenedAt": 1779338191805
+    },
+    {
+      "title": "The Kiffness x Mariana Campolongo - Conselho (Almir Guineto Cover).mp4",
+      "date": "",
+      "url": "https://www.googleapis.com/drive/v3/files/1M_AeYx7Q8mqQ9v8VurHZLVKIudwr6NBq?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
+      "feed": "Google Drive",
+      "type": "video",
+      "mimeType": "video/mp4",
+      "driveId": "1M_AeYx7Q8mqQ9v8VurHZLVKIudwr6NBq",
+      "isDrive": true,
+      "listenedAt": 1779338183815
+    },
+    {
+      "title": "Pete Yorn & Scarlett Johansson - Relator.mp4",
+      "date": "",
+      "url": "https://www.googleapis.com/drive/v3/files/1Nrm9F6NUZ0822xiWT4xp8Azns8JEZ_7k?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
+      "feed": "Google Drive",
+      "type": "video",
+      "mimeType": "video/mp4",
+      "driveId": "1Nrm9F6NUZ0822xiWT4xp8Azns8JEZ_7k",
+      "isDrive": true,
+      "listenedAt": 1779338169595
+    },
+    {
+      "title": "CADILLAC SOLITARIO  - LOQUILLO Y LOS TROGLODITAS.mp4",
+      "date": "",
+      "url": "https://www.googleapis.com/drive/v3/files/1rtnwPFoj2evZ5RfbFnG2YGzvlVIP46w5?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
+      "feed": "Google Drive",
+      "type": "video",
+      "mimeType": "video/mp4",
+      "driveId": "1rtnwPFoj2evZ5RfbFnG2YGzvlVIP46w5",
+      "isDrive": true,
+      "listenedAt": 1779338094558
+    },
+    {
+      "title": "Trump tergiverse... La Chine en profite ? - L'intégrale -",
+      "date": "Wed, 20 May 2026 17:26:53 +0200",
+      "url": "https://api.octopus.saooti.com/podcast/download/2518934.mp3?origin=rss",
+      "feed": "C dans l'air",
+      "type": "audio",
+      "duration": "01:03:04",
+      "description": "C dans l'air du 20 mai 2026 - Trump tergiverse... La Chine en profite ? Alors que Donald Trump continue de multiplier les menaces et les revirements face à l’Iran, annonçant lundi avoir suspendu une vaste attaque contre Téhéran à la demande des monarchies du Golfe, tout en affirmant que l’armée américaine reste prête à lancer « une attaque totale » à tout moment, Vladimir Poutine est reçu en grande pompe à Pékin aujourd’hui par Xi Jinping, quelques jours seulement après la visite du président de",
+      "image": "https://storage.gra.cloud.ovh.net/v1/AUTH_1db17c9a9c714ce39f508d240f11d920/octopus-bucket/6889b58c-454d-4b39-be81-d14254401a23/d33f0971-798e-402a-9285-219cb09625ad.jpg",
+      "listenedAt": 1779336596089
+    },
+    {
+      "title": "Le duel de Pouchkine, le combat fatal d'un géant de la littérature russe",
+      "date": "Tue, 19 May 2026 13:02:37 GMT",
+      "url": "https://audio.audiomeans.fr/file/GMQNcneuDw/d6057264-0b88-48dc-ba05-594f0faa893d.mp3?_=1779194708",
+      "feed": "Dossiers de Franck Ferrand",
+      "type": "audio",
+      "duration": "28:30",
+      "description": "Plongez au coeur de la Russie du XIXe siècle et découvrez le destin tragique d'Alexandre Pouchkine, l'un des plus grands poètes de la littérature russe. 🖋️ Suivez le parcours exceptionnel de ce génie des lettres, couronné dès son plus jeune âge et comblé des faveurs du tsar, mais qui finira par trouver la mort dans un duel pour une affaire de cœur. 💔 Entre amour, jalousie et vengeance, Franck Ferrand vous plonge dans les coulisses de ce duel fatal qui a marqué à jamais l'histoire de la Russie.",
+      "image": "https://static.audiomeans.fr/img/podcast/0e568a29-3a55-4466-be3c-9818108667d4.jpg",
+      "listenedAt": 1779298250160
+    },
+    {
+      "title": "Kyo - Le Graal (Clip officiel).mp4",
+      "date": "",
+      "url": "https://www.googleapis.com/drive/v3/files/1SCgDJ-924MmLfjg7MKDvPoYcXBckvdhZ?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
+      "feed": "Google Drive",
+      "type": "video",
+      "mimeType": "video/mp4",
+      "driveId": "1SCgDJ-924MmLfjg7MKDvPoYcXBckvdhZ",
+      "isDrive": true,
+      "listenedAt": 1779297006676
+    },
+    {
+      "title": "Années 70 -1.mp3",
+      "date": "",
+      "url": "https://www.googleapis.com/drive/v3/files/1oLv444DqldLaNfP-5YjGytSlBIb-KRaz?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
+      "feed": "Google Drive",
+      "type": "drive",
+      "mimeType": "audio/mpeg",
+      "driveId": "1oLv444DqldLaNfP-5YjGytSlBIb-KRaz",
+      "isDrive": true,
+      "listenedAt": 1779277299690
     },
     {
       "title": "Cognition du rat : l'égout et les couleurs",
@@ -276,17 +511,6 @@
       "listenedAt": 1779205999569
     },
     {
-      "title": "Pete Yorn & Scarlett Johansson - Relator.mp4",
-      "date": "",
-      "url": "https://www.googleapis.com/drive/v3/files/1Nrm9F6NUZ0822xiWT4xp8Azns8JEZ_7k?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
-      "feed": "Google Drive",
-      "type": "video",
-      "mimeType": "video/mp4",
-      "driveId": "1Nrm9F6NUZ0822xiWT4xp8Azns8JEZ_7k",
-      "isDrive": true,
-      "listenedAt": 1779205975632
-    },
-    {
       "title": "The Cranberries - Linger (Official Music Video).mp4",
       "date": "",
       "url": "https://www.googleapis.com/drive/v3/files/1nrdO6FsWLBMUPbwf8w_pctchsLqxQWjZ?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
@@ -296,17 +520,6 @@
       "driveId": "1nrdO6FsWLBMUPbwf8w_pctchsLqxQWjZ",
       "isDrive": true,
       "listenedAt": 1779205970683
-    },
-    {
-      "title": "The Kiffness x Mariana Campolongo - Conselho (Almir Guineto Cover).mp4",
-      "date": "",
-      "url": "https://www.googleapis.com/drive/v3/files/1M_AeYx7Q8mqQ9v8VurHZLVKIudwr6NBq?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
-      "feed": "Google Drive",
-      "type": "video",
-      "mimeType": "video/mp4",
-      "driveId": "1M_AeYx7Q8mqQ9v8VurHZLVKIudwr6NBq",
-      "isDrive": true,
-      "listenedAt": 1779205966034
     },
     {
       "title": "The Power Of Love (Frankie Goes To Hollywood) - Steve Franklin Remix.mp4",
@@ -320,28 +533,6 @@
       "listenedAt": 1779205962703
     },
     {
-      "title": "The Weeknd - Save Your Tears (Official Music Video).mp4",
-      "date": "",
-      "url": "https://www.googleapis.com/drive/v3/files/1PLwjiylC-s2NKixz6ZrL6H4Wp_vxJi2A?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
-      "feed": "Google Drive",
-      "type": "video",
-      "mimeType": "video/mp4",
-      "driveId": "1PLwjiylC-s2NKixz6ZrL6H4Wp_vxJi2A",
-      "isDrive": true,
-      "listenedAt": 1779205957848
-    },
-    {
-      "title": "Tom Odell - Another Love (Official Video).mp4",
-      "date": "",
-      "url": "https://www.googleapis.com/drive/v3/files/1Olum92RwL5GzDmz5EzGI2QdEKyJuJj1O?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
-      "feed": "Google Drive",
-      "type": "video",
-      "mimeType": "video/mp4",
-      "driveId": "1Olum92RwL5GzDmz5EzGI2QdEKyJuJj1O",
-      "isDrive": true,
-      "listenedAt": 1779205952665
-    },
-    {
       "title": "LiliRoseDreams - ¡Porque lo digo yo y punto.mp3",
       "date": "",
       "url": "https://www.googleapis.com/drive/v3/files/1Vdv6uTngWrIUZwZIyKnbqNT3ivHspXKc?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
@@ -353,17 +544,6 @@
       "listenedAt": 1779205054269
     },
     {
-      "title": "Kyo - Le Graal (Clip officiel).mp4",
-      "date": "",
-      "url": "https://www.googleapis.com/drive/v3/files/1SCgDJ-924MmLfjg7MKDvPoYcXBckvdhZ?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
-      "feed": "Google Drive",
-      "type": "video",
-      "mimeType": "video/mp4",
-      "driveId": "1SCgDJ-924MmLfjg7MKDvPoYcXBckvdhZ",
-      "isDrive": true,
-      "listenedAt": 1779204555702
-    },
-    {
       "title": "Histoire des Anges et des Démons",
       "date": "Fri, 15 May 2026 06:00:00 +0000",
       "url": "https://tr.ausha.co/o9ZJkiD1YPe6/api.soundcast.io/v1/stitch/ausha.mp3?tags=62229451a1e06&apiKey=c1a94b3301c64853868548ac73233ca1&podcastUrl=https%3A%2F%2Faudio.ausha.co%2Fo9ZJkiD1YPe6.mp3%3Ft%3D1761298841",
@@ -373,17 +553,6 @@
       "description": "Les anges et les démons, figures emblématiques des religions monothéistes, sont des créatures de l’au-delà, célestes ou chthoniennes, positives ou négatives. Ils jouent un rôle d’intermédiaire entre les hommes et Dieu pour certains, tandis que d’autres les perçoivent comme des tentateurs et des destructeurs. Nous nous pencherons sur l’histoire de ces créatures, explorant l’angélologie et la démonologie, ainsi que leurs racines dans les traditions païennes plus anciennes. Notre étude portera égal",
       "image": "https://image.ausha.co/15pCVdnzWGfmNA2HTjBu1CgZ6IyUk6XHG5ahp24J_1400x1400.jpeg?t=1761298700",
       "listenedAt": 1779203839996
-    },
-    {
-      "title": "Amy Winehouse - You Know I'm No Good.mp4",
-      "date": "",
-      "url": "https://www.googleapis.com/drive/v3/files/1uCqEGt0SuXMe5vcST_e9z5Epq1eltoJk?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow",
-      "feed": "Google Drive",
-      "type": "video",
-      "mimeType": "video/mp4",
-      "driveId": "1uCqEGt0SuXMe5vcST_e9z5Epq1eltoJk",
-      "isDrive": true,
-      "listenedAt": 1779174549619
     },
     {
       "title": "Delpech.mp3",
@@ -494,20 +663,20 @@
       "date": 1779173920646
     },
     "https://www.googleapis.com/drive/v3/files/1uCqEGt0SuXMe5vcST_e9z5Epq1eltoJk?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow": {
-      "time": 11.441067,
-      "date": 1779174561251
+      "time": 14.685691,
+      "date": 1779349739275
     },
     "https://tr.ausha.co/o9ZJkiD1YPe6/api.soundcast.io/v1/stitch/ausha.mp3?tags=62229451a1e06&apiKey=c1a94b3301c64853868548ac73233ca1&podcastUrl=https%3A%2F%2Faudio.ausha.co%2Fo9ZJkiD1YPe6.mp3%3Ft%3D1761298841": {
       "time": 1260.691288,
       "date": 1779203843239
     },
     "https://www.googleapis.com/drive/v3/files/1SCgDJ-924MmLfjg7MKDvPoYcXBckvdhZ?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow": {
-      "time": 26.1109,
-      "date": 1779204557610
+      "time": 81.428682,
+      "date": 1779297068831
     },
     "https://www.googleapis.com/drive/v3/files/1Nrm9F6NUZ0822xiWT4xp8Azns8JEZ_7k?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow": {
-      "time": 22.067886,
-      "date": 1779205997137
+      "time": 32.714243,
+      "date": 1779338182331
     },
     "https://sphinx.acast.com/p/open/s/61308a906d38e90019a4bdd1/e/6a0c28d80bb7fec0e3bca595/media.mp3": {
       "time": 108.68705,
@@ -534,8 +703,8 @@
       "date": 1779260963082
     },
     "http://icecast.skyrock.net/s/natio_mp3_128k": {
-      "time": 5.157852,
-      "date": 1779275308804
+      "time": 35.54983,
+      "date": 1779349656496
     },
     "http://icecast.funradio.fr/fun-1-44-128": {
       "time": 5.141212,
@@ -554,32 +723,144 @@
       "date": 1779275508286
     },
     "http://novazz.ice.infomaniak.ch/novazz-128.mp3": {
-      "time": 5.088332,
-      "date": 1779275519899
+      "time": 5.071398,
+      "date": 1779338302144
     },
     "https://eu1.fastcast4u.com/proxy/kpmxz?mp=/1": {
-      "time": 5.145353,
-      "date": 1779275527270
+      "time": 30.3194,
+      "date": 1779338381175
     },
     "http://100radio-80.ice.infomaniak.ch/100radio-80-128.mp3": {
-      "time": 681.474866,
-      "date": 1779276211301
+      "time": 25.264439,
+      "date": 1779338342455
     },
     "https://streaming.nrjaudio.fm/ou7xugf3s5gi?origine=playernrj&aw_0_req.userConsentV2=&aw_0_1st.station=NRJ-Hits": {
-      "time": 10.220804,
-      "date": 1779276224254
+      "time": 5.066612,
+      "date": 1779338417361
     },
     "http://icecast.radiofrance.fr/franceinfo-hifi.aac": {
       "time": 126.976,
       "date": 1779276360780
     },
     "https://www.googleapis.com/drive/v3/files/1oioS4PcT1MHpUFj3EAq9RdaydFBCAbkg?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow": {
-      "time": 904.869479,
-      "date": 1779277297982
+      "time": 1661.673537,
+      "date": 1779426196947
     },
     "https://www.googleapis.com/drive/v3/files/1oLv444DqldLaNfP-5YjGytSlBIb-KRaz?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow": {
       "time": 323.112827,
       "date": 1779277625512
+    },
+    "https://audio.audiomeans.fr/file/GMQNcneuDw/d6057264-0b88-48dc-ba05-594f0faa893d.mp3?_=1779194708": {
+      "time": 1243.071188,
+      "date": 1779299518281
+    },
+    "https://api.octopus.saooti.com/podcast/download/2518934.mp3?origin=rss": {
+      "time": 3749.822683,
+      "date": 1779337627379
+    },
+    "http://direct.franceinfo.fr/live/franceinfo-midfi.mp3": {
+      "time": 53.629668,
+      "date": 1779469642753
+    },
+    "https://www.googleapis.com/drive/v3/files/1rtnwPFoj2evZ5RfbFnG2YGzvlVIP46w5?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow": {
+      "time": 75.0105,
+      "date": 1779338167082
+    },
+    "https://www.googleapis.com/drive/v3/files/1M_AeYx7Q8mqQ9v8VurHZLVKIudwr6NBq?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow": {
+      "time": 5.246318,
+      "date": 1779338190331
+    },
+    "https://www.googleapis.com/drive/v3/files/1PLwjiylC-s2NKixz6ZrL6H4Wp_vxJi2A?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow": {
+      "time": 5.226369,
+      "date": 1779338198534
+    },
+    "https://www.googleapis.com/drive/v3/files/1Olum92RwL5GzDmz5EzGI2QdEKyJuJj1O?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow": {
+      "time": 25.441981,
+      "date": 1779338225486
+    },
+    "http://stream.rfm.fr/rfm.mp3": {
+      "time": 50.58052,
+      "date": 1779338281613
+    },
+    "https://streaming.nrjaudio.fm/oug7girb92oc?origine=tingfm": {
+      "time": 10.133464,
+      "date": 1779338294926
+    },
+    "https://str0.creacast.com/classique1": {
+      "time": 5.0738,
+      "date": 1779338309066
+    },
+    "http://europe2.lmn.fm/europe2.mp3": {
+      "time": 5.064602,
+      "date": 1779338315880
+    },
+    "http://streaming.radio.rtl2.fr/rtl2-1-44-128": {
+      "time": 5.101736,
+      "date": 1779338393894
+    },
+    "https://eu1.fastcast4u.com/proxy/kpmxz/stream": {
+      "time": 10.125033,
+      "date": 1779338405300
+    },
+    "http://hd.lagrosseradio.info/lagrosseradio-reggae-192.mp3": {
+      "time": 25.333398,
+      "date": 1779338455770
+    },
+    "https://stream.radiofrance.fr/fip/fip_hifi.m3u8": {
+      "time": 197.004415,
+      "date": 1779338656690
+    },
+    "https://playerservices.streamtheworld.com/api/livestream-redirect/Los40.mp3": {
+      "time": 106.075886,
+      "date": 1779348871363
+    },
+    "https://www.googleapis.com/drive/v3/files/1X2cyQtC3r3Qk7y7ixNEj7gh5XLmBTJe7?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow": {
+      "time": 50.455937,
+      "date": 1779349711228
+    },
+    "https://www.googleapis.com/drive/v3/files/1b9S-zDKMr3ext7IRjeYI53-ANvM9sfaC?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow": {
+      "time": 10.134272,
+      "date": 1779349753153
+    },
+    "https://traffic.360.audion.fm/4840e1a2-c33d-4233-a501-a37d22c0a3fb.mp3": {
+      "time": 212.839226,
+      "date": 1779349786370
+    },
+    "https://api.octopus.saooti.com/podcast/download/2521479.mp3?origin=rss": {
+      "time": 212.015776,
+      "date": 1779393272501
+    },
+    "https://adhandler.kissfmradio.cires21.com/get_link?url=https://bbkissfm.kissfmradio.cires21.com/bbkissfm.mp3": {
+      "time": 25.328203,
+      "date": 1779394438945
+    },
+    "https://audio.audiomeans.fr/file/GMQNcneuDw/c73bb418-a19e-4a22-9492-0e130d1711c8.mp3?_=1776158001&ps=7c44ef0d-1d1c-4230-9da1-b2e4f839108c": {
+      "time": 474.610713,
+      "date": 1779413130662
+    },
+    "https://proxycast.radiofrance.fr/482d71cb-266c-442d-b748-8fa221a578e9/14312-20.05.2026-ITEMA_24519034-2026C48906S0140-NET_MFC_09C2ECF5-82CD-40CC-BA8C-95F03951C76A-21-74602872404a38073e31c6abcb04f053.mp3": {
+      "time": 1049.798943,
+      "date": 1779414670410
+    },
+    "https://www.googleapis.com/drive/v3/files/1HCLvX9weJqVjbjLTKBJYXZkNYFMzT718?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow": {
+      "time": 10.237504,
+      "date": 1779474822031
+    },
+    "https://www.googleapis.com/drive/v3/files/1CoUc_lhwhxr3kWEui4XwADMiYLc-PUCN?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow": {
+      "time": 5259.170651,
+      "date": 1779481771438
+    },
+    "https://audio.audiomeans.fr/file/GMQNcneuDw/100d4de1-4f80-4b10-bb87-4e92e57a5465.mp3?_=1779292082": {
+      "time": 1210.875323,
+      "date": 1779483004497
+    },
+    "https://www.googleapis.com/drive/v3/files/1rLBwrpUst2EBJGbAUfAfXC0Desjw9iLF?alt=media&key=AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow": {
+      "time": 312.970369,
+      "date": 1779483336919
+    },
+    "https://tr.ausha.co/nrg46uR2VlKe/api.soundcast.io/v1/stitch/ausha.mp3?packId=figaro_020&apiKey=c1a94b3301c64853868548ac73233ca1&podcastUrl=https%3A%2F%2Faudio.ausha.co%2Fnrg46uR2VlKe.mp3%3Ft%3D1779205909": {
+      "time": 906.732075,
+      "date": 1779505196128
     }
   }
 }
