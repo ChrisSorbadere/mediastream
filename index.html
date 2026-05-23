@@ -1089,50 +1089,41 @@ function playAudiociteBook(book) {
 
 async function loadLibrivoxCatalog() {
   const box = document.getElementById('ab-list');
-  box.innerHTML = `<div class="loading-text">Chargement du catalogue<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span><br><small style="color:var(--text3);">Première fois : ~15 secondes. Ensuite instantané pendant 24h.</small></div>`;
+  box.innerHTML = `<div class="loading-text">Chargement du catalogue<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span><br><small style="color:var(--text3);">Première fois : ~30 secondes. Ensuite instantané pendant 24h.</small></div>`;
 
-  // Cache spécifique à la langue (clé différente par langue)
-  const langKey = audiobookFilters.language || 'all';
-  const cacheKeyFull = AUDIOBOOK_CACHE_KEY + '_archive_' + langKey;
-
-  // Vérifie cache localStorage
-  let books = null;
-  try {
-    const stored = localStorage.getItem(cacheKeyFull);
-    if (stored) {
-      const data = JSON.parse(stored);
-      if (data.time && data.books && (Date.now() - data.time < AUDIOBOOK_CACHE_DURATION)) {
-        books = data.books;
-      } else {
-        localStorage.removeItem(cacheKeyFull);
-      }
-    }
-  } catch(e) {}
-
-  // Si pas en cache, on télécharge via Archive.org Search API
-  if (!books) {
-    books = await fetchArchiveLibrivoxByLanguage(audiobookFilters.language, box);
-    if (books.length > 0) {
+  // Charger le catalogue complet via LibriVox API (par pages de 500 jusqu'à 6000 livres)
+  const cacheValid = audiobookCatalogCache && (Date.now() - audiobookCatalogCacheTime < AUDIOBOOK_CACHE_DURATION);
+  if (!cacheValid) {
+    const all = [];
+    const PAGE_SIZE = 500;
+    const MAX_PAGES = 12;
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const params = new URLSearchParams({ format: 'json', extended: '1', limit: String(PAGE_SIZE), offset: String(page * PAGE_SIZE) });
+      const url = `${AUDIOBOOK_API}/?${params.toString()}`;
       try {
-        const slim = books.map(b => ({
-          id: b.id,
-          title: b.title,
-          authors: b.authors,
-          language: b.language,
-          genres: b.genres,
-          totaltime: b.totaltime,
-          url_iarchive: b.url_iarchive,
-          identifier: b.identifier,
-        }));
-        localStorage.setItem(cacheKeyFull, JSON.stringify({ time: Date.now(), books: slim }));
-      } catch(e) { console.warn('Cache non persisté:', e.message); }
+        const res = await fetch(PROXY + encodeURIComponent(url), { signal: AbortSignal.timeout(30000) });
+        const data = await res.json();
+        const pageBooks = data.books || [];
+        if (!pageBooks.length) break;
+        all.push(...pageBooks);
+        box.innerHTML = `<div class="loading-text">Chargement<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span><br><small style="color:var(--text3);">${all.length} livres récupérés…</small></div>`;
+        if (pageBooks.length < PAGE_SIZE) break;
+      } catch(e) { console.warn(`Échec page ${page}:`, e); break; }
     }
+    audiobookCatalogCache = all;
+    audiobookCatalogCacheTime = Date.now();
+    saveAudiobookCacheToStorage();
   }
 
+  let books = audiobookCatalogCache || [];
+
   // Filtres côté client
+  if (audiobookFilters.language) {
+    books = books.filter(b => (b.language || '').toLowerCase() === audiobookFilters.language.toLowerCase());
+  }
   if (audiobookFilters.genre) {
     books = books.filter(b => {
-      const genresStr = (b.genres || []).map(g => (typeof g === 'string' ? g : g.name)).join(' ').toLowerCase();
+      const genresStr = (b.genres || []).map(g => g.name || g).join(' ').toLowerCase();
       return genresStr.includes(audiobookFilters.genre.toLowerCase());
     });
   }
@@ -1143,7 +1134,7 @@ async function loadLibrivoxCatalog() {
   if (audiobookFilters.author) {
     const q = audiobookFilters.author.toLowerCase();
     books = books.filter(b => {
-      const authorsStr = (b.authors || []).map(a => typeof a === 'string' ? a : `${a.first_name||''} ${a.last_name||''}`).join(' ').toLowerCase();
+      const authorsStr = (b.authors || []).map(a => `${a.first_name||''} ${a.last_name||''}`).join(' ').toLowerCase();
       return authorsStr.includes(q);
     });
   }
@@ -1154,11 +1145,11 @@ async function loadLibrivoxCatalog() {
     if (audiobookFilters.language && (f.language || '').toLowerCase() !== audiobookFilters.language.toLowerCase()) return false;
     if (audiobookFilters.title && !(f.title || '').toLowerCase().includes(audiobookFilters.title.toLowerCase())) return false;
     if (audiobookFilters.author) {
-      const authorsStr = (f.authors || []).map(a => typeof a === 'string' ? a : `${a.first_name||''} ${a.last_name||''}`).join(' ').toLowerCase();
+      const authorsStr = (f.authors || []).map(a => `${a.first_name||''} ${a.last_name||''}`).join(' ').toLowerCase();
       if (!authorsStr.includes(audiobookFilters.author.toLowerCase())) return false;
     }
     if (audiobookFilters.genre) {
-      const genresStr = (f.genres || []).map(g => (typeof g === 'string' ? g : g.name)).join(' ').toLowerCase();
+      const genresStr = (f.genres || []).map(g => g.name || g).join(' ').toLowerCase();
       if (!genresStr.includes(audiobookFilters.genre.toLowerCase())) return false;
     }
     return true;
@@ -1181,9 +1172,9 @@ async function loadLibrivoxCatalog() {
   combined.slice(0, 300).forEach(book => {
     const div = document.createElement('div');
     div.className = 'episode-item';
-    const authors = (book.authors || []).map(a => typeof a === 'string' ? a : `${a.first_name||''} ${a.last_name||''}`.trim()).filter(Boolean).join(', ');
+    const authors = (book.authors || []).map(a => `${a.first_name||''} ${a.last_name||''}`.trim()).filter(Boolean).join(', ');
     const isFav = isAudiobookFav(book.id);
-    const starBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();toggleAudiobookFavBtn('${escapeAttr(String(book.id))}', this)" title="${isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}" style="${isFav ? 'color:#fbbf24;border-color:#fbbf24;' : ''}">${isFav ? '★' : '☆'}</button>`;
+    const starBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();toggleAudiobookFavBtn(${book.id}, this)" title="${isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}" style="${isFav ? 'color:#fbbf24;border-color:#fbbf24;' : ''}">${isFav ? '★' : '☆'}</button>`;
     const totalTime = book.totaltime || '';
     div.innerHTML = `
       <div class="ep-thumb">📖</div>
@@ -1192,6 +1183,7 @@ async function loadLibrivoxCatalog() {
         <div class="ep-meta">
           <span class="ep-source">${escapeHTML(authors || 'Anonyme')}</span>
           ${totalTime ? `<span>${escapeHTML(totalTime)}</span>` : ''}
+          ${book.num_sections ? `<span>${book.num_sections} chapitres</span>` : ''}
         </div>
       </div>
       <div class="ep-actions-right">${starBtn}</div>`;
@@ -1205,53 +1197,6 @@ async function loadLibrivoxCatalog() {
   badge.textContent = `${shownCount}${combined.length > 300 ? ' / ' + combined.length : ''} livres${favList.length ? ` · ${favList.length} favoris` : ''}`;
   badge.className = 'badge badge-purple';
   badge.style.display = 'inline';
-}
-
-async function fetchArchiveLibrivoxByLanguage(language, progressBox) {
-  // URL simplifiée et corrigée : pas de mediatype redondant, pas de guillemets, pas de tri spécial
-  const all = [];
-  const PAGE_SIZE = 500;
-  const MAX_PAGES = 10; // jusqu'à 5000 livres dans une langue (largement suffisant)
-  let queryStr = 'collection:librivoxaudio';
-  if (language) queryStr += ` AND language:${language}`;
-
-  for (let page = 1; page <= MAX_PAGES; page++) {
-    const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(queryStr)}&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=creator&fl%5B%5D=language&fl%5B%5D=subject&fl%5B%5D=runtime&rows=${PAGE_SIZE}&page=${page}&output=json`;
-    try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(25000) });
-      if (!res.ok) {
-        console.warn(`Archive.org HTTP ${res.status} page ${page}`);
-        break;
-      }
-      const data = await res.json();
-      const docs = data.response?.docs || [];
-      if (!docs.length) break;
-      docs.forEach(d => {
-        all.push({
-          id: d.identifier,
-          identifier: d.identifier,
-          title: d.title || '',
-          authors: Array.isArray(d.creator) 
-            ? d.creator.map(c => ({ first_name: '', last_name: c })) 
-            : (d.creator ? [{ first_name: '', last_name: d.creator }] : []),
-          language: Array.isArray(d.language) ? d.language[0] : (d.language || ''),
-          genres: Array.isArray(d.subject) 
-            ? d.subject.map(s => ({ name: s })) 
-            : (d.subject ? [{ name: d.subject }] : []),
-          totaltime: d.runtime || '',
-          url_iarchive: `https://archive.org/details/${d.identifier}`,
-        });
-      });
-      if (progressBox) {
-        progressBox.innerHTML = `<div class="loading-text">Chargement<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span><br><small style="color:var(--text3);">${all.length} livres récupérés…</small></div>`;
-      }
-      if (docs.length < PAGE_SIZE) break;
-    } catch(e) {
-      console.warn(`Échec page ${page}:`, e);
-      break;
-    }
-  }
-  return all;
 }
 
 async function showAudiobookDetail(book) {
