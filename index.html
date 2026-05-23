@@ -2247,6 +2247,39 @@ function formatDuration(d) {
 // ═══════════════════════════════════════════
 loadData();
 showRecents(); // Page d'accueil
+
+// Pré-chargement silencieux du catalogue audio-livres en arrière-plan
+// Lancé 3 secondes après le démarrage pour ne pas ralentir l'ouverture de l'app
+setTimeout(async () => {
+  try {
+    // Attend que la restauration du cache soit terminée
+    await restoreAudiobookCache();
+    // Si le cache est valide (< 24h), on ne fait rien
+    const cacheValid = audiobookCatalogCache && (Date.now() - audiobookCatalogCacheTime < AUDIOBOOK_CACHE_DURATION);
+    if (cacheValid) return;
+    // Sinon, on télécharge silencieusement le catalogue
+    const all = [];
+    const PAGE_SIZE = 500;
+    const MAX_PAGES = 30;
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const params = new URLSearchParams({ format: 'json', extended: '1', limit: String(PAGE_SIZE), offset: String(page * PAGE_SIZE) });
+      const url = `${AUDIOBOOK_API}/?${params.toString()}`;
+      try {
+        const res = await fetch(PROXY + encodeURIComponent(url), { signal: AbortSignal.timeout(30000) });
+        const data = await res.json();
+        const pageBooks = data.books || [];
+        if (!pageBooks.length) break;
+        all.push(...pageBooks);
+        if (pageBooks.length < PAGE_SIZE) break;
+      } catch(e) { break; }
+    }
+    if (all.length > 0) {
+      audiobookCatalogCache = all;
+      audiobookCatalogCacheTime = Date.now();
+      await saveAudiobookCacheToStorage();
+    }
+  } catch(e) { /* échec silencieux, le chargement normal prendra le relais */ }
+}, 3000);
 </script>
 </body>
 </html>
