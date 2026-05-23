@@ -392,6 +392,7 @@ function renderSidebar() {
   list.appendChild(makeSpecialItem('archives', '📦', 'Archives', currentView?.type === 'archives'));
   list.appendChild(makeSpecialItem('search', '🔎', 'Recherche globale', currentView?.type === 'search'));
   list.appendChild(makeSpecialItem('radio', '📻', 'Radios', currentView?.type === 'radio'));
+  list.appendChild(makeSpecialItem('audiobook', '📖', 'Audio-livres', currentView?.type === 'audiobook' || currentView?.type === 'audiobook-detail'));
 
   const div1 = document.createElement('div');
   div1.className = 'sidebar-divider';
@@ -471,6 +472,7 @@ function makeSpecialItem(type, icon, name, active) {
     else if (type === 'archives') showArchives();
     else if (type === 'search') showGlobalSearch();
     else if (type === 'radio') showRadios();
+    else if (type === 'audiobook') showAudiobooks();
   };
   return div;
 }
@@ -782,6 +784,294 @@ function toggleRadioFavBtn(uuid, btn) {
 }
 
 // ═══════════════════════════════════════════
+// AUDIO-LIVRES (LibriVox API)
+// ═══════════════════════════════════════════
+const AUDIOBOOK_API = 'https://librivox.org/api/feed/audiobooks';
+const AUDIOBOOK_FAV_KEY = 'mediastream_audiobook_fav_v2';
+let audiobookFilters = { language: 'French', title: '', author: '', genre: '' };
+
+// Liste des genres LibriVox les plus utilisés, organisés par type
+const AUDIOBOOK_GENRES = [
+  { group: 'Fiction', items: [
+    { label: 'Drame / Théâtre', value: 'Drama' },
+    { label: 'Roman historique', value: 'Historical Fiction' },
+    { label: 'Science-fiction', value: 'Science Fiction' },
+    { label: 'Fantastique / Fantasy', value: 'Fantasy' },
+    { label: 'Mystère / Policier', value: 'Mystery' },
+    { label: 'Aventure', value: 'Action & Adventure Fiction' },
+    { label: 'Romance', value: 'Romance' },
+    { label: 'Horreur', value: 'Horror & Supernatural Fiction' },
+    { label: 'Humour', value: 'Humorous Fiction' },
+    { label: 'Suspense / Espionnage', value: 'Suspense, Espionage, Political & Thrillers' },
+    { label: 'Conte / Mythes', value: 'Myths, Legends & Fairy Tales' },
+    { label: 'Nouvelles', value: 'Short Stories' },
+    { label: 'Religieux', value: 'Religious Fiction' },
+    { label: 'Gothique', value: 'Gothic Fiction' },
+    { label: 'Satire', value: 'Satire' },
+  ]},
+  { group: 'Non-fiction', items: [
+    { label: 'Essai', value: 'Essays & Short Works' },
+    { label: 'Philosophie', value: 'Philosophy' },
+    { label: 'Histoire', value: 'History' },
+    { label: 'Biographie', value: 'Biography & Autobiography' },
+    { label: 'Poésie', value: 'Poetry' },
+    { label: 'Religion', value: 'Religion' },
+    { label: 'Politique', value: 'Political Science' },
+    { label: 'Sciences', value: 'Science' },
+    { label: 'Voyage', value: 'Travel & Geography' },
+    { label: 'Mémoires / Lettres', value: 'Memoirs' },
+  ]},
+];
+
+function getAudiobookFavs() {
+  try { return JSON.parse(localStorage.getItem(AUDIOBOOK_FAV_KEY) || '{}'); }
+  catch(e) { return {}; }
+}
+function isAudiobookFav(id) { return !!getAudiobookFavs()[id]; }
+function toggleAudiobookFav(id, bookData) {
+  const favs = getAudiobookFavs();
+  if (favs[id]) delete favs[id];
+  else favs[id] = bookData;
+  localStorage.setItem(AUDIOBOOK_FAV_KEY, JSON.stringify(favs));
+}
+
+async function showAudiobooks() {
+  currentView = { type: 'audiobook' };
+  closeSidebar();
+  renderSidebar();
+  document.getElementById('content-title').textContent = '📖 Audio-livres (LibriVox)';
+  document.getElementById('btn-add-feed').style.display = 'none';
+  document.getElementById('content-badge').style.display = 'none';
+
+  const list = document.getElementById('episodes-list');
+  const genreOptions = AUDIOBOOK_GENRES.map(g => 
+    `<optgroup label="${g.group}">` + 
+    g.items.map(i => `<option value="${escapeAttr(i.value)}" ${i.value === audiobookFilters.genre ? 'selected' : ''}>${escapeHTML(i.label)}</option>`).join('') + 
+    `</optgroup>`
+  ).join('');
+
+  list.innerHTML = `
+    <div style="padding:10px;display:flex;gap:8px;flex-wrap:wrap;background:var(--bg2);border-radius:6px;margin-bottom:10px;">
+      <select class="modal-select" id="ab-language" style="flex:1;min-width:120px;margin:0;">
+        <option value="French" ${audiobookFilters.language==='French'?'selected':''}>🇫🇷 Français</option>
+        <option value="English" ${audiobookFilters.language==='English'?'selected':''}>🇬🇧 Anglais</option>
+        <option value="Spanish" ${audiobookFilters.language==='Spanish'?'selected':''}>🇪🇸 Espagnol</option>
+        <option value="German" ${audiobookFilters.language==='German'?'selected':''}>🇩🇪 Allemand</option>
+        <option value="Italian" ${audiobookFilters.language==='Italian'?'selected':''}>🇮🇹 Italien</option>
+        <option value="" ${!audiobookFilters.language?'selected':''}>Toutes langues</option>
+      </select>
+      <select class="modal-select" id="ab-genre" style="flex:1;min-width:140px;margin:0;">
+        <option value="" ${!audiobookFilters.genre?'selected':''}>Tous genres</option>
+        ${genreOptions}
+      </select>
+      <input class="modal-input" id="ab-title" placeholder="Titre" value="${escapeAttr(audiobookFilters.title)}" style="flex:1;min-width:120px;margin:0;">
+      <input class="modal-input" id="ab-author" placeholder="Auteur" value="${escapeAttr(audiobookFilters.author)}" style="flex:1;min-width:120px;margin:0;">
+      <button class="btn-ok" onclick="searchAudiobooks()" style="padding:9px 16px;">Rechercher</button>
+    </div>
+    <div id="ab-list"><div class="loading-text">Chargement<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div></div>`;
+
+  await searchAudiobooks();
+
+  ['ab-language','ab-genre'].forEach(id => {
+    document.getElementById(id)?.addEventListener('change', searchAudiobooks);
+  });
+  ['ab-title','ab-author'].forEach(id => {
+    document.getElementById(id)?.addEventListener('keydown', e => { if (e.key === 'Enter') searchAudiobooks(); });
+  });
+}
+
+async function searchAudiobooks() {
+  audiobookFilters.language = document.getElementById('ab-language').value.trim();
+  audiobookFilters.genre = document.getElementById('ab-genre').value.trim();
+  audiobookFilters.title = document.getElementById('ab-title').value.trim();
+  audiobookFilters.author = document.getElementById('ab-author').value.trim();
+
+  const box = document.getElementById('ab-list');
+  box.innerHTML = `<div class="loading-text">Chargement<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>`;
+
+  const params = new URLSearchParams({ format: 'json', extended: '1', limit: '300' });
+  if (audiobookFilters.title) params.set('title', audiobookFilters.title);
+  if (audiobookFilters.author) params.set('author', audiobookFilters.author);
+  if (audiobookFilters.genre) params.set('genre', audiobookFilters.genre);
+
+  try {
+    const url = `${AUDIOBOOK_API}/?${params.toString()}`;
+    const res = await fetch(PROXY + encodeURIComponent(url));
+    const data = await res.json();
+    let books = data.books || [];
+
+    if (audiobookFilters.language) {
+      books = books.filter(b => (b.language || '').toLowerCase() === audiobookFilters.language.toLowerCase());
+    }
+
+    const favs = getAudiobookFavs();
+    const favList = Object.values(favs).filter(f => {
+      if (audiobookFilters.language && (f.language || '').toLowerCase() !== audiobookFilters.language.toLowerCase()) return false;
+      if (audiobookFilters.title && !(f.title || '').toLowerCase().includes(audiobookFilters.title.toLowerCase())) return false;
+      if (audiobookFilters.author) {
+        const authorsStr = (f.authors || []).map(a => `${a.first_name||''} ${a.last_name||''}`).join(' ').toLowerCase();
+        if (!authorsStr.includes(audiobookFilters.author.toLowerCase())) return false;
+      }
+      if (audiobookFilters.genre) {
+        const genresStr = (f.genres || []).map(g => g.name || g).join(' ').toLowerCase();
+        if (!genresStr.includes(audiobookFilters.genre.toLowerCase())) return false;
+      }
+      return true;
+    });
+
+    const favIds = new Set(favList.map(f => f.id));
+    const combined = [...favList, ...books.filter(b => !favIds.has(b.id))];
+
+    if (!combined.length) {
+      box.innerHTML = '<div class="empty-text">Aucun audio-livre trouvé. Essaie d\'autres critères.</div>';
+      currentEpisodes = [];
+      return;
+    }
+
+    box.innerHTML = '';
+    combined.slice(0, 80).forEach(book => {
+      const div = document.createElement('div');
+      div.className = 'episode-item';
+      const authors = (book.authors || []).map(a => `${a.first_name||''} ${a.last_name||''}`.trim()).filter(Boolean).join(', ');
+      const isFav = isAudiobookFav(book.id);
+      const starBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();toggleAudiobookFavBtn(${book.id}, this)" title="${isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}" style="${isFav ? 'color:#fbbf24;border-color:#fbbf24;' : ''}">${isFav ? '★' : '☆'}</button>`;
+      const totalTime = book.totaltime || '';
+      div.innerHTML = `
+        <div class="ep-thumb">📖</div>
+        <div class="ep-info">
+          <div class="ep-title">${isFav ? '<span style="color:#fbbf24;">★</span> ' : ''}${escapeHTML(book.title || 'Sans titre')}</div>
+          <div class="ep-meta">
+            <span class="ep-source">${escapeHTML(authors || 'Anonyme')}</span>
+            ${totalTime ? `<span>${escapeHTML(totalTime)}</span>` : ''}
+            <span>${book.num_sections || '?'} chapitres</span>
+          </div>
+        </div>
+        <div class="ep-actions-right">${starBtn}</div>`;
+      div._book = book;
+      div.onclick = () => showAudiobookDetail(book);
+      box.appendChild(div);
+    });
+
+    const badge = document.getElementById('content-badge');
+    badge.textContent = `${Math.min(combined.length, 80)} livres${favList.length ? ` · ${favList.length} favoris` : ''}`;
+    badge.className = 'badge badge-purple';
+    badge.style.display = 'inline';
+  } catch(e) {
+    box.innerHTML = `<div class="error-text" style="color:var(--red);padding:12px;">Erreur LibriVox : ${escapeHTML(e.message)}</div>`;
+  }
+}
+
+async function showAudiobookDetail(book) {
+  currentView = { type: 'audiobook-detail', book };
+  document.getElementById('content-title').textContent = '📖 ' + (book.title || 'Audio-livre');
+  document.getElementById('btn-add-feed').style.display = 'none';
+
+  const authors = (book.authors || []).map(a => `${a.first_name||''} ${a.last_name||''}`.trim()).filter(Boolean).join(', ');
+  const list = document.getElementById('episodes-list');
+  list.innerHTML = `
+    <div style="padding:14px;background:var(--bg2);border-radius:6px;margin-bottom:10px;">
+      <button class="btn-cancel" onclick="showAudiobooks()" style="margin-bottom:10px;">← Retour</button>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:6px;">${escapeHTML(authors || 'Anonyme')}</div>
+      <div style="font-size:18px;font-weight:600;margin-bottom:8px;">${escapeHTML(book.title || '')}</div>
+      <div style="font-size:12px;color:var(--text3);line-height:1.6;max-height:120px;overflow-y:auto;">${escapeHTML((book.description || '').replace(/<[^>]+>/g, ' ').slice(0, 800))}</div>
+    </div>
+    <div id="ab-chapters"><div class="loading-text">Chargement des chapitres<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div></div>`;
+
+  // Récupère les chapitres : Internet Archive expose les MP3 par fichier
+  try {
+    const archiveId = book.url_librivox?.split('/').filter(Boolean).pop() || book.url_iarchive?.split('/').filter(Boolean).pop();
+    // Utilise l'API Archive.org pour lister les fichiers MP3
+    let chapters = [];
+    if (book.url_iarchive) {
+      const iaId = book.url_iarchive.split('/details/')[1]?.split('/')[0];
+      if (iaId) {
+        const metaUrl = `https://archive.org/metadata/${iaId}`;
+        const res = await fetch(PROXY + encodeURIComponent(metaUrl));
+        const meta = await res.json();
+        const files = meta.files || [];
+        // Filtre les MP3 (préfère 64kb, sinon 128kb), trie par ordre
+        const mp3s = files.filter(f => f.name && /\.mp3$/i.test(f.name) && !/_64kb/.test(f.name) && !/_128kb/.test(f.name));
+        // Si pas de MP3 "natifs", prend les versions 64kb
+        const fallback = files.filter(f => f.name && /_64kb\.mp3$/i.test(f.name));
+        const finalList = mp3s.length ? mp3s : fallback;
+        chapters = finalList
+          .sort((a,b) => (a.name || '').localeCompare(b.name || '', undefined, {numeric: true}))
+          .map((f, idx) => ({
+            title: f.title || `Chapitre ${idx + 1}`,
+            url: `https://archive.org/download/${iaId}/${f.name}`,
+            duration: f.length || '',
+            track: idx + 1,
+          }));
+      }
+    }
+
+    // Fallback : utilise les sections de l'API LibriVox si dispo
+    if (!chapters.length && book.sections) {
+      chapters = book.sections.map((s, idx) => ({
+        title: s.title || `Chapitre ${idx + 1}`,
+        url: s.listen_url || s.url || '',
+        duration: s.playtime || '',
+        track: idx + 1,
+      })).filter(c => c.url);
+    }
+
+    if (!chapters.length) {
+      document.getElementById('ab-chapters').innerHTML = '<div class="error-text" style="color:var(--red);padding:12px;">Impossible de récupérer les chapitres de ce livre.</div>';
+      return;
+    }
+
+    // Transforme en épisodes
+    const eps = chapters.map(ch => ({
+      title: ch.title,
+      date: '',
+      url: ch.url,
+      feed: book.title || 'Audio-livre',
+      type: 'audiobook',
+      duration: ch.duration,
+      image: '',
+      isAudiobook: true,
+      track: ch.track,
+    }));
+    currentEpisodes = eps;
+
+    const container = document.getElementById('ab-chapters');
+    container.innerHTML = '';
+    eps.forEach(ep => {
+      const div = document.createElement('div');
+      div.className = 'episode-item';
+      const pos = getPosition(ep.url);
+      const resumeTxt = pos > 5 ? `<span class="ep-resume">⏱ ${formatTime(pos)}</span>` : '';
+      div.innerHTML = `
+        <div class="ep-thumb">📖</div>
+        <div class="ep-info">
+          <div class="ep-title">${ep.track}. ${escapeHTML(ep.title)}</div>
+          <div class="ep-meta">
+            ${ep.duration ? `<span class="ep-source">${escapeHTML(formatDuration(ep.duration))}</span>` : ''}
+            ${resumeTxt}
+          </div>
+        </div>`;
+      div.onclick = () => playEpisode(ep, div);
+      container.appendChild(div);
+    });
+
+    const badge = document.getElementById('content-badge');
+    badge.textContent = `${eps.length} chapitres`;
+    badge.className = 'badge badge-purple';
+    badge.style.display = 'inline';
+  } catch(e) {
+    document.getElementById('ab-chapters').innerHTML = `<div class="error-text" style="color:var(--red);padding:12px;">Erreur : ${escapeHTML(e.message)}</div>`;
+  }
+}
+
+function toggleAudiobookFavBtn(bookId, btn) {
+  const item = btn.closest('.episode-item');
+  const book = item?._book;
+  if (!book) return;
+  toggleAudiobookFav(bookId, book);
+  searchAudiobooks();
+}
+
+// ═══════════════════════════════════════════
 // CHARGEMENT FLUX
 // ═══════════════════════════════════════════
 async function loadFeed(feed) {
@@ -1041,12 +1331,12 @@ function playEpisode(ep, el) {
     activeMedia = audio;
   }
 
-  // Stream : Drive direct + Radios direct (déjà CORS-ok), tout le reste via proxy
-  activeMedia.src = (ep.isDrive || ep.isRadio) ? ep.url : (PROXY + encodeURIComponent(ep.url));
+  // Stream : Drive direct + Radios direct + Audio-livres direct (tous CORS-ok), tout le reste via proxy
+  activeMedia.src = (ep.isDrive || ep.isRadio || ep.isAudiobook) ? ep.url : (PROXY + encodeURIComponent(ep.url));
 
   document.getElementById('player-title').textContent = ep.title;
   document.getElementById('player-sub').textContent = ep.feed || '';
-  document.getElementById('player-art').textContent = (isVideo && audioOnlyMode) ? '🎧' : (isVideo ? '🎬' : (ep.type === 'radio' ? '📻' : (ep.type === 'drive' ? '☁' : '🎙')));
+  document.getElementById('player-art').textContent = (isVideo && audioOnlyMode) ? '🎧' : (isVideo ? '🎬' : (ep.type === 'radio' ? '📻' : (ep.type === 'audiobook' ? '📖' : (ep.type === 'drive' ? '☁' : '🎙'))));
 
   // Bouton "Audio seul" visible uniquement pour les vidéos
   const btnAO = document.getElementById('btn-audio-only');
