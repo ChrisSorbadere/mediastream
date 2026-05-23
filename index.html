@@ -1089,14 +1089,14 @@ function playAudiociteBook(book) {
 
 async function loadLibrivoxCatalog() {
   const box = document.getElementById('ab-list');
-  box.innerHTML = `<div class="loading-text">Chargement du catalogue<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span><br><small style="color:var(--text3);">Première fois : ~30 secondes. Ensuite instantané pendant 24h.</small></div>`;
+  box.innerHTML = `<div class="loading-text">Chargement du catalogue<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span><br><small style="color:var(--text3);">Première fois : ~1 minute. Ensuite instantané pendant 24h.</small></div>`;
 
   // Charger le catalogue complet via LibriVox API (par pages de 500 jusqu'à 6000 livres)
   const cacheValid = audiobookCatalogCache && (Date.now() - audiobookCatalogCacheTime < AUDIOBOOK_CACHE_DURATION);
   if (!cacheValid) {
     const all = [];
     const PAGE_SIZE = 500;
-    const MAX_PAGES = 12;
+    const MAX_PAGES = 30; // jusqu'à 15000 livres (couvre 75% du catalogue LibriVox total)
     for (let page = 0; page < MAX_PAGES; page++) {
       const params = new URLSearchParams({ format: 'json', extended: '1', limit: String(PAGE_SIZE), offset: String(page * PAGE_SIZE) });
       const url = `${AUDIOBOOK_API}/?${params.toString()}`;
@@ -1119,7 +1119,7 @@ async function loadLibrivoxCatalog() {
 
   // Filtres côté client
   if (audiobookFilters.language) {
-    books = books.filter(b => (b.language || '').toLowerCase() === audiobookFilters.language.toLowerCase());
+    books = books.filter(b => (b.language || '').toLowerCase().includes(audiobookFilters.language.toLowerCase()));
   }
   if (audiobookFilters.genre) {
     books = books.filter(b => {
@@ -1142,7 +1142,7 @@ async function loadLibrivoxCatalog() {
   // Favoris filtrés
   const favs = getAudiobookFavs();
   const favList = Object.values(favs).filter(f => !f.isAudiocite).filter(f => {
-    if (audiobookFilters.language && (f.language || '').toLowerCase() !== audiobookFilters.language.toLowerCase()) return false;
+    if (audiobookFilters.language && !(f.language || '').toLowerCase().includes(audiobookFilters.language.toLowerCase())) return false;
     if (audiobookFilters.title && !(f.title || '').toLowerCase().includes(audiobookFilters.title.toLowerCase())) return false;
     if (audiobookFilters.author) {
       const authorsStr = (f.authors || []).map(a => `${a.first_name||''} ${a.last_name||''}`).join(' ').toLowerCase();
