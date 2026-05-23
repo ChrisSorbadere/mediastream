@@ -880,6 +880,11 @@ async function showAudiobooks() {
   });
 }
 
+// Cache pour éviter de recharger le catalogue à chaque recherche
+let audiobookCatalogCache = null;
+let audiobookCatalogCacheTime = 0;
+const AUDIOBOOK_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 heures
+
 async function searchAudiobooks() {
   audiobookFilters.language = document.getElementById('ab-language').value.trim();
   audiobookFilters.genre = document.getElementById('ab-genre').value.trim();
@@ -887,48 +892,75 @@ async function searchAudiobooks() {
   audiobookFilters.author = document.getElementById('ab-author').value.trim();
 
   const box = document.getElementById('ab-list');
-  box.innerHTML = `<div class="loading-text">Chargement<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>`;
 
-  // Stratégie 1 : recherche directe LibriVox avec filtres explicites
-  // Stratégie 2 : si trop peu de résultats en filtrant la langue, on pagine pour récupérer plus de livres
-  const baseParams = new URLSearchParams({ format: 'json', extended: '1' });
-  if (audiobookFilters.title) baseParams.set('title', audiobookFilters.title);
-  if (audiobookFilters.author) baseParams.set('author', audiobookFilters.author);
-  if (audiobookFilters.genre) baseParams.set('genre', audiobookFilters.genre);
+  // Si on a un titre ou un auteur précis, on fait une recherche ciblée directe (rapide)
+  const hasSpecificFilter = audiobookFilters.title || audiobookFilters.author;
 
   try {
     let books = [];
-    // Récupère plusieurs pages pour avoir un pool suffisant après filtrage langue
-    // Sans filtre langue : 50 résultats suffisent. Avec langue spécifique : on doit récupérer plus.
-    const wantLanguage = audiobookFilters.language;
-    const maxPages = wantLanguage ? 6 : 1; // 6×50 = 300 livres dans le pool
 
-    for (let page = 0; page < maxPages; page++) {
-      const params = new URLSearchParams(baseParams);
-      params.set('limit', '50');
-      params.set('offset', String(page * 50));
+    if (hasSpecificFilter) {
+      // Recherche ciblée directe : LibriVox renvoie les résultats correspondants
+      box.innerHTML = `<div class="loading-text">Recherche<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>`;
+      const params = new URLSearchParams({ format: 'json', extended: '1', limit: '100' });
+      if (audiobookFilters.title) params.set('title', audiobookFilters.title);
+      if (audiobookFilters.author) params.set('author', audiobookFilters.author);
+      if (audiobookFilters.genre) params.set('genre', audiobookFilters.genre);
       const url = `${AUDIOBOOK_API}/?${params.toString()}`;
       const res = await fetch(PROXY + encodeURIComponent(url));
       const data = await res.json();
-      const pageBooks = data.books || [];
-      if (!pageBooks.length) break;
-      books = books.concat(pageBooks);
-      // Si on a une langue, vérifie qu'on a déjà au moins 30 livres correspondants
-      if (wantLanguage) {
-        const matching = books.filter(b => (b.language || '').toLowerCase() === wantLanguage.toLowerCase());
-        if (matching.length >= 30) break;
+      books = data.books || [];
+      // Filtre langue côté client
+      if (audiobookFilters.language) {
+        books = books.filter(b => (b.language || '').toLowerCase() === audiobookFilters.language.toLowerCase());
+      }
+    } else {
+      // Navigation par langue/genre : on utilise le cache du catalogue
+      box.innerHTML = `<div class="loading-text">Chargement du catalogue<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span><br><small style="color:var(--text3);">Première fois : ~30 secondes. Ensuite instantané pendant 24h.</small></div>`;
+
+      // Charger le catalogue si vide ou périmé
+      const cacheValid = audiobookCatalogCache && (Date.now() - audiobookCatalogCacheTime < AUDIOBOOK_CACHE_DURATION);
+      if (!cacheValid) {
+        // Charge le catalogue par pages de 500 (max ~10 pages = 5000 livres pour couvrir le français)
+        const all = [];
+        const PAGE_SIZE = 500;
+        const MAX_PAGES = 12;
+        for (let page = 0; page < MAX_PAGES; page++) {
+          const params = new URLSearchParams({ format: 'json', extended: '1', limit: String(PAGE_SIZE), offset: String(page * PAGE_SIZE) });
+          const url = `${AUDIOBOOK_API}/?${params.toString()}`;
+          try {
+            const res = await fetch(PROXY + encodeURIComponent(url), { signal: AbortSignal.timeout(30000) });
+            const data = await res.json();
+            const pageBooks = data.books || [];
+            if (!pageBooks.length) break;
+            all.push(...pageBooks);
+            box.innerHTML = `<div class="loading-text">Chargement<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span><br><small style="color:var(--text3);">${all.length} livres récupérés…</small></div>`;
+            if (pageBooks.length < PAGE_SIZE) break; // dernière page
+          } catch(e) { console.warn(`Échec page ${page}:`, e); break; }
+        }
+        audiobookCatalogCache = all;
+        audiobookCatalogCacheTime = Date.now();
+      }
+
+      books = audiobookCatalogCache || [];
+
+      // Filtre langue
+      if (audiobookFilters.language) {
+        books = books.filter(b => (b.language || '').toLowerCase() === audiobookFilters.language.toLowerCase());
+      }
+      // Filtre genre
+      if (audiobookFilters.genre) {
+        books = books.filter(b => {
+          const genresStr = (b.genres || []).map(g => g.name || g).join(' ').toLowerCase();
+          return genresStr.includes(audiobookFilters.genre.toLowerCase());
+        });
       }
     }
 
-    // Filtre langue côté client
-    if (wantLanguage) {
-      books = books.filter(b => (b.language || '').toLowerCase() === wantLanguage.toLowerCase());
-    }
-
-    // Favoris filtrés
+    // Favoris filtrés (cohérent avec la recherche)
     const favs = getAudiobookFavs();
     const favList = Object.values(favs).filter(f => {
-      if (wantLanguage && (f.language || '').toLowerCase() !== wantLanguage.toLowerCase()) return false;
+      if (audiobookFilters.language && (f.language || '').toLowerCase() !== audiobookFilters.language.toLowerCase()) return false;
       if (audiobookFilters.title && !(f.title || '').toLowerCase().includes(audiobookFilters.title.toLowerCase())) return false;
       if (audiobookFilters.author) {
         const authorsStr = (f.authors || []).map(a => `${a.first_name||''} ${a.last_name||''}`).join(' ').toLowerCase();
@@ -952,8 +984,11 @@ async function searchAudiobooks() {
       return;
     }
 
+    // Tri par titre alphabétique pour les navigations par langue
+    combined.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'fr'));
+
     box.innerHTML = '';
-    combined.slice(0, 80).forEach(book => {
+    combined.slice(0, 200).forEach(book => {
       const div = document.createElement('div');
       div.className = 'episode-item';
       const authors = (book.authors || []).map(a => `${a.first_name||''} ${a.last_name||''}`.trim()).filter(Boolean).join(', ');
@@ -977,7 +1012,8 @@ async function searchAudiobooks() {
     });
 
     const badge = document.getElementById('content-badge');
-    badge.textContent = `${Math.min(combined.length, 80)} livres${favList.length ? ` · ${favList.length} favoris` : ''}`;
+    const shownCount = Math.min(combined.length, 200);
+    badge.textContent = `${shownCount}${combined.length > 200 ? ' / ' + combined.length : ''} livres${favList.length ? ` · ${favList.length} favoris` : ''}`;
     badge.className = 'badge badge-purple';
     badge.style.display = 'inline';
   } catch(e) {
