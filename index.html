@@ -184,11 +184,6 @@
   </div>
 </header>
 
-<div class="preload-banner" id="preload-banner">
-  <div class="preload-spinner"></div>
-  <span id="preload-text">Mise à jour du catalogue audio-livres…</span>
-</div>
-
 <div class="main">
   <div class="overlay-bg" id="overlay-bg" onclick="toggleSidebar()"></div>
   <div class="sidebar" id="sidebar">
@@ -2375,15 +2370,16 @@ async function preloadAudiobookCatalog() {
 // ═══════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════
-// Nettoie l'ancienne version v1 du pré-chargement (qui pouvait saturer localStorage)
+// Nettoie les anciennes versions du pré-chargement qui pouvaient saturer localStorage
 try { localStorage.removeItem('mediastream_audiobook_preload_progress_v1'); } catch(e) {}
+try { localStorage.removeItem('mediastream_audiobook_preload_progress_v2'); } catch(e) {}
 
 loadData();
 showRecents();
 
-// Lance le pré-chargement 3 secondes après le démarrage
-// Si interrompu (écran éteint, app fermée), reprise au prochain lancement
-setTimeout(() => { preloadAudiobookCatalog(); }, 3000);
+// PRÉ-CHARGEMENT AUTOMATIQUE DÉSACTIVÉ :
+// il saturait notre proxy Cloudflare et empêchait les podcasts/radios de fonctionner.
+// Le catalogue audio-livres sera chargé à la demande quand l'utilisateur clique sur 📖 Audio-livres.
 </script>
 </body>
 </html>
