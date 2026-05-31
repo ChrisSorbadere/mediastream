@@ -231,6 +231,7 @@
     <button class="control-btn icon-only" id="btn-shuffle" onclick="toggleShuffle()" title="Lecture aléatoire">🔀</button>
     <button class="control-btn icon-only" id="btn-loop" onclick="toggleLoop()" title="Boucle">🔁</button>
     <button class="control-btn icon-only" id="btn-sleep" onclick="showSleepModal()" title="Minuteur de sommeil">💤</button>
+    <button class="control-btn icon-only" id="btn-leveling" onclick="toggleLeveling()" title="Égaliser le volume (compression)">🔊</button>
     <div class="control-spacer"></div>
     <button class="speed-btn active" onclick="setSpeed(1)">×1</button>
     <button class="speed-btn" onclick="setSpeed(1.25)">×1.25</button>
@@ -1385,6 +1386,114 @@ const audio = document.getElementById('audio-player');
 const video = document.getElementById('video-player');
 let activeMedia = audio; // alias vers le lecteur actuellement actif
 
+// ─────────────────────────────────────────────
+// LISSAGE DU VOLUME (compresseur Web Audio) — optionnel
+// ─────────────────────────────────────────────
+let levelingEnabled = false;
+let audioCtx = null;
+let compressor = null;
+let makeupGain = null;
+const mediaNodes = new Map(); // élément média -> { source, connected }
+
+function setupLevelingChain() {
+  // Crée le contexte audio et la chaîne de compression (une seule fois)
+  if (audioCtx) return true;
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return false;
+    audioCtx = new Ctx();
+
+    compressor = audioCtx.createDynamicsCompressor();
+    // Réglages doux : lisse sans dénaturer
+    compressor.threshold.value = -24;  // dB : seuil de déclenchement
+    compressor.knee.value = 30;        // transition douce
+    compressor.ratio.value = 4;        // compression modérée 4:1
+    compressor.attack.value = 0.003;   // 3 ms
+    compressor.release.value = 0.25;   // 250 ms
+
+    // Léger gain de compensation pour remonter le niveau global
+    makeupGain = audioCtx.createGain();
+    makeupGain.gain.value = 1.4;
+
+    compressor.connect(makeupGain);
+    makeupGain.connect(audioCtx.destination);
+    return true;
+  } catch(e) {
+    console.warn('Web Audio indisponible:', e);
+    audioCtx = null;
+    return false;
+  }
+}
+
+function connectMediaToLeveling(mediaEl) {
+  // Crée le nœud source pour cet élément (une seule fois par élément — contrainte Web Audio)
+  if (!audioCtx) return;
+  let entry = mediaNodes.get(mediaEl);
+  if (!entry) {
+    try {
+      const source = audioCtx.createMediaElementSource(mediaEl);
+      entry = { source, routed: false };
+      mediaNodes.set(mediaEl, entry);
+    } catch(e) {
+      console.warn('createMediaElementSource échec:', e);
+      return;
+    }
+  }
+  // Route vers le compresseur si pas déjà fait
+  if (!entry.routed) {
+    try {
+      entry.source.connect(compressor);
+      entry.routed = true;
+    } catch(e) { console.warn('Routage compresseur échec:', e); }
+  }
+}
+
+function toggleLeveling() {
+  const btn = document.getElementById('btn-leveling');
+  if (!levelingEnabled) {
+    // Activation
+    const ok = setupLevelingChain();
+    if (!ok) {
+      toast('⚠️ Lissage non supporté par ce navigateur');
+      return;
+    }
+    // Reprend le contexte si suspendu (politique navigateur)
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    // Connecte les deux éléments média à la chaîne
+    connectMediaToLeveling(audio);
+    connectMediaToLeveling(video);
+    levelingEnabled = true;
+    applyCompressorSettings(); // restaure les vrais réglages
+    btn.classList.add('active');
+    toast('🔊 Lissage du volume activé');
+  } else {
+    // Désactivation : on déroute les sources (le son repasse en direct)
+    // Note : une fois createMediaElementSource appelé, le son DOIT passer par Web Audio.
+    // Donc pour "désactiver", on règle le compresseur en mode neutre (ratio 1, gain 1).
+    if (compressor && makeupGain) {
+      compressor.ratio.value = 1;
+      compressor.threshold.value = 0;
+      makeupGain.gain.value = 1;
+    }
+    levelingEnabled = false;
+    btn.classList.remove('active');
+    toast('Lissage désactivé');
+  }
+}
+
+// Réapplique les réglages actifs du compresseur (utilisé à la réactivation)
+function applyCompressorSettings() {
+  if (!compressor || !makeupGain) return;
+  if (levelingEnabled) {
+    compressor.threshold.value = -24;
+    compressor.knee.value = 30;
+    compressor.ratio.value = 4;
+    compressor.attack.value = 0.003;
+    compressor.release.value = 0.25;
+    makeupGain.gain.value = 1.4;
+  }
+}
+
 function setPlayerArt(ep, isVideo) {
   const artEl = document.getElementById('player-art');
   // Détermine l'emoji de repli selon le type
@@ -1457,6 +1566,10 @@ function playEpisode(ep, el) {
       if (saved > 5 && activeMedia.duration && saved < activeMedia.duration - 10) {
         activeMedia.currentTime = saved;
       }
+    }
+    // Si le lissage est actif, s'assurer que le contexte audio tourne
+    if (levelingEnabled && audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume();
     }
     activeMedia.play().catch(e => console.warn('Lecture refusée:', e));
   };
