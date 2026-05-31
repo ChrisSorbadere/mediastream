@@ -43,6 +43,7 @@
   .sidebar-header { padding: 12px 14px 8px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
   .sidebar-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text3); }
   .btn-add { background: none; border: 1px solid var(--border); border-radius: 4px; color: var(--text2); font-size: 13px; padding: 4px 10px; cursor: pointer; }
+  .btn-add.active { background: var(--accent2); color: white; border-color: var(--accent); }
   .btn-add:hover { background: var(--bg3); color: var(--text); border-color: var(--border2); }
   .sidebar-list { flex: 1; overflow-y: auto; padding: 6px 0; }
 
@@ -202,7 +203,8 @@
     <div class="content-header">
       <span class="content-title" id="content-title">Accueil</span>
       <span class="badge badge-blue" id="content-badge" style="display:none;"></span>
-      <button class="btn-add" onclick="showModal('add-feed')" id="btn-add-feed" style="margin-left:auto;display:none;">+ Podcast</button>
+      <button class="btn-add" onclick="toggleUnreadFilter()" id="btn-unread" style="margin-left:auto;display:none;">Non lus</button>
+      <button class="btn-add" onclick="showModal('add-feed')" id="btn-add-feed" style="display:none;">+ Podcast</button>
     </div>
     <div class="episodes-list" id="episodes-list"></div>
   </div>
@@ -309,7 +311,7 @@ const DEFAULT_DRIVE_FOLDERS = [
 // ═══════════════════════════════════════════
 let folders = [];
 let driveFolders = [];
-let currentView = null; // {type:'folder'|'recents'|'archives'|'drive', id:..., folder?:..., items?:...}
+let currentView = null; // {type:'folder'|'recents'|'queue'|'verify'|'drive'|'radio'|'audiobook'|'search', ...}
 let currentEpisodes = [];
 let activeEpisodeEl = null;
 let activeEpisode = null;
@@ -318,6 +320,7 @@ let modalContext = null;
 let shuffleMode = false;
 let loopMode = false; // false | 'one' | 'all'
 let audioOnlyMode = false; // mode "audio seul" persistant pour les vidéos
+let unreadOnly = false; // filtre "non lus" global pour les dossiers de podcasts
 let expandedFolders = new Set(); // dossiers dépliés
 
 // ═══════════════════════════════════════════
@@ -353,7 +356,13 @@ function loadData() {
   }
 }
 function saveData() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ folders, driveFolders })); } catch(e) {}
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ folders, driveFolders }));
+  } catch(e) {
+    // Échec probable : stockage plein. On avertit l'utilisateur (sinon perte silencieuse de données)
+    console.error('Échec sauvegarde:', e);
+    toast('⚠️ Sauvegarde impossible (stockage plein)');
+  }
 }
 function getPositions() {
   try { return JSON.parse(localStorage.getItem(POSITION_KEY) || '{}'); } catch(e) { return {}; }
@@ -506,7 +515,7 @@ function renderSidebar() {
   // Dossiers spéciaux
   list.appendChild(makeSpecialItem('recents', '🕒', 'Récents', currentView?.type === 'recents'));
   list.appendChild(makeSpecialItem('queue', '▶', 'File d\'attente', currentView?.type === 'queue'));
-  list.appendChild(makeSpecialItem('archives', '📦', 'Archives', currentView?.type === 'archives'));
+  list.appendChild(makeSpecialItem('verify', '🩺', 'Vérifier les podcasts', currentView?.type === 'verify'));
   list.appendChild(makeSpecialItem('search', '🔎', 'Recherche globale', currentView?.type === 'search'));
   list.appendChild(makeSpecialItem('radio', '📻', 'Radios', currentView?.type === 'radio'));
   list.appendChild(makeSpecialItem('audiobook', '📖', 'Audio-livres', currentView?.type === 'audiobook'));
@@ -593,7 +602,7 @@ function makeSpecialItem(type, icon, name, active) {
   div.onclick = () => {
     if (type === 'recents') showRecents();
     else if (type === 'queue') showQueue();
-    else if (type === 'archives') showArchives();
+    else if (type === 'verify') showVerify();
     else if (type === 'search') showGlobalSearch();
     else if (type === 'radio') showRadios();
     else if (type === 'audiobook') showAudiobooks();
@@ -612,7 +621,18 @@ function selectFolder(id) {
   renderSidebar();
   document.getElementById('content-title').textContent = folder.name;
   document.getElementById('btn-add-feed').style.display = 'inline-block';
+  // Affiche le bouton "Non lus" (uniquement dans les dossiers de podcasts)
+  const btnUnread = document.getElementById('btn-unread');
+  btnUnread.style.display = 'inline-block';
+  btnUnread.classList.toggle('active', unreadOnly);
   loadFolder(folder);
+}
+
+function toggleUnreadFilter() {
+  unreadOnly = !unreadOnly;
+  document.getElementById('btn-unread').classList.toggle('active', unreadOnly);
+  // Re-rend la liste courante avec le nouveau filtre
+  renderEpisodes(currentEpisodes);
 }
 
 function toggleFolder(id) {
@@ -658,7 +678,7 @@ function showRecents() {
   renderSidebar();
   document.getElementById('content-title').textContent = '🕒 Récemment écoutés';
   document.getElementById('btn-add-feed').style.display = 'none';
-  const history = getHistory().slice(0, 10);
+  const history = getHistory().slice(0, 30);
   currentEpisodes = history;
   renderEpisodes(history);
   const badge = document.getElementById('content-badge');
@@ -667,19 +687,158 @@ function showRecents() {
   badge.style.display = 'inline';
 }
 
-function showArchives() {
-  currentView = { type: 'archives' };
+// ═══════════════════════════════════════════
+// VÉRIFICATION DES PODCASTS
+// ═══════════════════════════════════════════
+let verifyInProgress = false;
+
+async function showVerify() {
+  currentView = { type: 'verify' };
   closeSidebar();
   renderSidebar();
-  document.getElementById('content-title').textContent = '📦 Archives';
+  document.getElementById('content-title').textContent = '🩺 Vérifier les podcasts';
   document.getElementById('btn-add-feed').style.display = 'none';
-  const history = getHistory();
-  currentEpisodes = history;
-  renderEpisodes(history);
-  const badge = document.getElementById('content-badge');
-  badge.textContent = history.length + ' épisodes';
-  badge.className = 'badge badge-purple';
-  badge.style.display = 'inline';
+  document.getElementById('content-badge').style.display = 'none';
+
+  // Rassemble tous les flux de tous les dossiers
+  const allFeeds = [];
+  folders.forEach(folder => {
+    (folder.feeds || []).forEach(feed => {
+      allFeeds.push({ ...feed, folderName: folder.name });
+    });
+  });
+
+  const list = document.getElementById('episodes-list');
+
+  if (!allFeeds.length) {
+    list.innerHTML = '<div class="empty-text">Aucun podcast à vérifier.</div>';
+    return;
+  }
+
+  list.innerHTML = `
+    <div style="padding:12px;">
+      <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:12px;background:var(--bg2);padding:12px;border-radius:8px;">
+        Cette vérification teste chaque podcast : <b>chargement correct</b> et <b>date du dernier épisode</b> (alerte si plus d'un mois).
+        <br><br><small style="color:var(--text3);">La vérification est lente (un podcast à la fois) pour ne pas surcharger le serveur. Compte ~1 seconde par podcast.</small>
+      </div>
+      <button class="btn-ok" id="verify-start" onclick="runVerification()" style="width:100%;padding:12px;">▶ Lancer la vérification (${allFeeds.length} podcasts)</button>
+      <div id="verify-results" style="margin-top:12px;"></div>
+    </div>`;
+}
+
+async function runVerification() {
+  if (verifyInProgress) return;
+  verifyInProgress = true;
+
+  const allFeeds = [];
+  folders.forEach(folder => {
+    (folder.feeds || []).forEach(feed => {
+      allFeeds.push({ ...feed, folderName: folder.name, folderId: folder.id });
+    });
+  });
+
+  const btn = document.getElementById('verify-start');
+  const results = document.getElementById('verify-results');
+  if (btn) btn.disabled = true;
+
+  const ONE_MONTH = 31 * 24 * 60 * 60 * 1000;
+  let okCount = 0, oldCount = 0, errCount = 0;
+
+  results.innerHTML = '';
+
+  for (let i = 0; i < allFeeds.length; i++) {
+    const feed = allFeeds[i];
+    if (btn) btn.textContent = `Vérification… (${i + 1}/${allFeeds.length})`;
+
+    let status = 'ok', detail = '';
+    try {
+      const res = await fetch(PROXY + encodeURIComponent(feed.url), { signal: AbortSignal.timeout(15000) });
+      if (!res.ok) {
+        status = 'error'; detail = `Erreur HTTP ${res.status}`;
+      } else {
+        const text = await res.text();
+        const xml = new DOMParser().parseFromString(text, 'application/xml');
+        if (xml.querySelector('parsererror')) {
+          status = 'error'; detail = 'Flux illisible (XML invalide)';
+        } else {
+          const firstItem = xml.querySelector('item');
+          const pubDate = firstItem?.querySelector('pubDate')?.textContent;
+          if (!pubDate) {
+            status = 'old'; detail = 'Aucune date trouvée';
+          } else {
+            const date = new Date(pubDate);
+            const age = Date.now() - date.getTime();
+            if (age > ONE_MONTH) {
+              status = 'old';
+              const days = Math.floor(age / (24*60*60*1000));
+              detail = `Dernier épisode il y a ${days} jours`;
+            } else {
+              detail = `À jour (${formatDate(pubDate)})`;
+            }
+          }
+        }
+      }
+    } catch(e) {
+      status = 'error';
+      detail = e.name === 'TimeoutError' ? 'Délai dépassé' : 'Inaccessible';
+    }
+
+    if (status === 'ok') okCount++;
+    else if (status === 'old') oldCount++;
+    else errCount++;
+
+    const icon = status === 'ok' ? '✅' : (status === 'old' ? '⚠️' : '❌');
+    const color = status === 'ok' ? 'var(--green)' : (status === 'old' ? '#fbbf24' : 'var(--red)');
+    const row = document.createElement('div');
+    row.className = 'episode-item';
+    // Bouton supprimer uniquement pour les podcasts problématiques (anciens ou en erreur)
+    const delBtn = (status === 'old' || status === 'error')
+      ? `<button class="ep-icon-btn" onclick="event.stopPropagation();deleteFeedFromVerify('${escapeAttr(feed.folderId)}','${escapeAttr(feed.url)}','${escapeAttr(feed.name)}',this)" title="Supprimer ce podcast" style="color:var(--red);border-color:rgba(248,81,73,0.4);">🗑</button>`
+      : '';
+    row.innerHTML = `
+      <div class="ep-thumb" style="font-size:18px;">${icon}</div>
+      <div class="ep-info">
+        <div class="ep-title">${escapeHTML(feed.name)}</div>
+        <div class="ep-meta">
+          <span class="ep-source">📁 ${escapeHTML(feed.folderName)}</span>
+          <span style="color:${color};">${escapeHTML(detail)}</span>
+        </div>
+      </div>
+      <div class="ep-actions-right">${delBtn}</div>`;
+    results.appendChild(row);
+
+    // Petite pause entre chaque requête pour ménager le proxy
+    await new Promise(r => setTimeout(r, 300));
+  }
+
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = `↻ Relancer la vérification (${allFeeds.length} podcasts)`;
+  }
+
+  // Résumé en tête
+  const summary = document.createElement('div');
+  summary.style.cssText = 'padding:12px;background:var(--bg2);border-radius:8px;margin-bottom:12px;font-size:14px;line-height:1.8;';
+  summary.innerHTML = `<b>Résumé :</b><br>✅ ${okCount} à jour · ⚠️ ${oldCount} anciens · ❌ ${errCount} en erreur`;
+  results.insertBefore(summary, results.firstChild);
+
+  verifyInProgress = false;
+}
+
+function deleteFeedFromVerify(folderId, feedUrl, feedName, btnEl) {
+  if (!confirm(`Supprimer le podcast "${feedName}" ?`)) return;
+  const folder = folders.find(f => f.id === folderId);
+  if (!folder) return;
+  folder.feeds = folder.feeds.filter(f => f.url !== feedUrl);
+  saveData();
+  renderSidebar();
+  // Retire visuellement la ligne du podcast supprimé
+  const row = btnEl?.closest('.episode-item');
+  if (row) {
+    row.style.transition = 'opacity 0.2s';
+    row.style.opacity = '0';
+    setTimeout(() => row.remove(), 200);
+  }
 }
 
 let globalSearchCache = null;
@@ -1084,10 +1243,15 @@ function renderEpisodes(eps) {
   const list = document.getElementById('episodes-list');
   list.innerHTML = '';
   if (!eps.length) { list.innerHTML = '<div class="empty-text">Aucun épisode</div>'; return; }
-  const isRecentsView = currentView?.type === 'recents' || currentView?.type === 'archives';
+  const isRecentsView = currentView?.type === 'recents';
+  // Filtre "non lus" : actif uniquement dans les dossiers de podcasts
+  const applyUnread = unreadOnly && currentView?.type === 'folder';
+  let shownCount = 0;
   eps.forEach((ep, idx) => {
-    const div = document.createElement('div');
     const finished = isFinished(ep);
+    if (applyUnread && finished) return; // masque les épisodes terminés
+    shownCount++;
+    const div = document.createElement('div');
     div.className = 'episode-item' + (finished ? ' finished' : '');
     const pos = getPosition(ep.url);
     const resumeTxt = (pos > 5 && !finished) ? `<span class="ep-resume">⏱ ${formatTime(pos)}</span>` : '';
@@ -1116,6 +1280,10 @@ function renderEpisodes(eps) {
     div.onclick = () => playEpisode(ep, div);
     list.appendChild(div);
   });
+  // Si le filtre "non lus" a tout masqué
+  if (applyUnread && shownCount === 0) {
+    list.innerHTML = '<div class="empty-text">Tous les épisodes de ce dossier ont été écoutés. 🎉<br><br>Désactive le filtre "Non lus" pour les revoir.</div>';
+  }
 }
 
 function escapeAttr(s) {
@@ -1145,7 +1313,6 @@ function removeFromHistory(url) {
   localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
   // Rafraîchir la vue
   if (currentView?.type === 'recents') showRecents();
-  else if (currentView?.type === 'archives') showArchives();
 }
 
 function filterEpisodes() {
@@ -1518,7 +1685,13 @@ function showModal(mode, ctx) {
       <div class="modal-label">Nom du podcast</div>
       <input class="modal-input" id="m-name" placeholder="Ex. France Inter" />
       <div class="modal-label">URL du flux RSS</div>
-      <input class="modal-input" id="m-url" placeholder="https://..." />`;
+      <input class="modal-input" id="m-url" placeholder="https://..." />
+      <div style="font-size:12px;color:var(--text3);margin-top:6px;line-height:1.6;padding:10px;background:var(--bg3);border-radius:6px;">
+        💡 Tu ne connais pas l'URL du flux ?
+        <br>• Le bouton <b>🔍 Découvrir</b> (en haut) recherche automatiquement par nom.
+        <br>• Ou trouve le flux RSS d'un site avec
+        <a href="https://rss.com/tools/find-my-feed/" target="_blank" rel="noopener" style="color:var(--accent);">l'outil rss.com ↗</a>
+      </div>`;
     actions.innerHTML = `<button class="btn-cancel" onclick="closeModal()">Annuler</button><button class="btn-ok" onclick="saveModal()">Ajouter</button>`;
   } else if (mode === 'add-drive') {
     t.textContent = '☁ Ajouter un dossier Drive';
@@ -1831,7 +2004,14 @@ function deleteDrive(idx) {
 // IMPORT / EXPORT
 // ═══════════════════════════════════════════
 function exportData() {
-  const data = { folders, driveFolders, history: getHistory(), positions: getPositions() };
+  const data = {
+    folders,
+    driveFolders,
+    history: getHistory(),
+    positions: getPositions(),
+    radioFavorites: getRadioFavorites(),
+    queue: getQueue(),
+  };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -1851,6 +2031,8 @@ function importData(e) {
         if (data.driveFolders) driveFolders = data.driveFolders;
         if (data.history) localStorage.setItem(HISTORY_KEY, JSON.stringify(data.history));
         if (data.positions) localStorage.setItem(POSITION_KEY, JSON.stringify(data.positions));
+        if (data.radioFavorites) localStorage.setItem(RADIO_FAVORITES_KEY, JSON.stringify(data.radioFavorites));
+        if (data.queue) localStorage.setItem(QUEUE_KEY, JSON.stringify(data.queue));
       }
       saveData(); closeModal(); renderSidebar();
       alert('Importation réussie.');
@@ -1872,6 +2054,9 @@ function closeSidebar() {
   // Vide la barre de recherche du header au changement de vue (évite un filtre fantôme)
   const search = document.getElementById('search-input');
   if (search) search.value = '';
+  // Masque le bouton "Non lus" par défaut (réaffiché seulement dans les dossiers de podcasts)
+  const btnUnread = document.getElementById('btn-unread');
+  if (btnUnread) btnUnread.style.display = 'none';
 }
 
 // ═══════════════════════════════════════════
