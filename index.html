@@ -472,6 +472,15 @@ function clearQueue() {
   saveQueue([]);
   if (currentView?.type === 'queue') showQueue();
 }
+function moveQueueItem(idx, direction) {
+  const q = getQueue();
+  const newIdx = idx + direction;
+  if (newIdx < 0 || newIdx >= q.length) return;
+  // Échange les deux éléments
+  [q[idx], q[newIdx]] = [q[newIdx], q[idx]];
+  saveQueue(q);
+  if (currentView?.type === 'queue') showQueue();
+}
 function getNextFromQueue() {
   const q = getQueue();
   if (!q.length) return null;
@@ -524,6 +533,8 @@ function showQueue() {
     const thumbHtml = ep.image
       ? `<div class="ep-thumb"><img src="${escapeAttr(ep.image)}" loading="lazy" onerror="this.style.display='none';this.parentNode.textContent='${icon}'" style="width:100%;height:100%;object-fit:cover;"></div>`
       : `<div class="ep-thumb">${icon}</div>`;
+    const upBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();moveQueueItem(${idx},-1)" title="Monter" ${idx === 0 ? 'disabled style="opacity:0.3;"' : ''}>▲</button>`;
+    const downBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();moveQueueItem(${idx},1)" title="Descendre" ${idx === q.length - 1 ? 'disabled style="opacity:0.3;"' : ''}>▼</button>`;
     div.innerHTML = `
       ${thumbHtml}
       <div class="ep-info">
@@ -534,6 +545,7 @@ function showQueue() {
         </div>
       </div>
       <div class="ep-actions-right">
+        ${upBtn}${downBtn}
         <button class="ep-icon-btn" onclick="event.stopPropagation();removeFromQueue('${escapeAttr(ep.url)}')" title="Retirer de la file">✕</button>
       </div>`;
     div.onclick = () => playEpisode(ep, div);
