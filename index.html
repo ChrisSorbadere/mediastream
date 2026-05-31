@@ -1018,6 +1018,7 @@ const RADIO_FAVORITES_KEY = 'mediastream_radio_fav_v2';
 let radioFilters = { country: 'France', tag: '', name: '' };
 let radioCountries = null; // cache : [{name, stationcount}]
 let radioTags = null;      // cache : [{name, stationcount}]
+let radioView = 'favorites'; // 'favorites' | 'search'
 
 function getRadioFavorites() {
   try { return JSON.parse(localStorage.getItem(RADIO_FAVORITES_KEY) || '{}'); }
@@ -1029,8 +1030,30 @@ function isRadioFavorite(uuid) {
 function toggleRadioFavorite(uuid, stationData) {
   const favs = getRadioFavorites();
   if (favs[uuid]) delete favs[uuid];
-  else favs[uuid] = stationData;
+  else {
+    // Nouvel ajout : on lui donne l'ordre le plus élevé (placé en fin de liste)
+    const maxOrder = Object.values(favs).reduce((m, f) => Math.max(m, f._order ?? 0), -1);
+    favs[uuid] = { ...stationData, _order: maxOrder + 1 };
+  }
   localStorage.setItem(RADIO_FAVORITES_KEY, JSON.stringify(favs));
+}
+// Renvoie les favoris triés par ordre manuel
+function getRadioFavoritesSorted() {
+  const favs = getRadioFavorites();
+  return Object.values(favs).sort((a, b) => (a._order ?? 0) - (b._order ?? 0));
+}
+// Déplace un favori dans l'ordre (direction -1 = monter, +1 = descendre)
+function moveRadioFavorite(uuid, direction) {
+  const sorted = getRadioFavoritesSorted();
+  const idx = sorted.findIndex(f => f.stationuuid === uuid);
+  const newIdx = idx + direction;
+  if (idx === -1 || newIdx < 0 || newIdx >= sorted.length) return;
+  [sorted[idx], sorted[newIdx]] = [sorted[newIdx], sorted[idx]];
+  // Réassigne les ordres séquentiellement
+  const favs = getRadioFavorites();
+  sorted.forEach((f, i) => { if (favs[f.stationuuid]) favs[f.stationuuid]._order = i; });
+  localStorage.setItem(RADIO_FAVORITES_KEY, JSON.stringify(favs));
+  if (currentView?.type === 'radio' && radioView === 'favorites') renderRadioFavorites();
 }
 
 async function loadRadioCountries() {
@@ -1058,12 +1081,93 @@ async function showRadios() {
   currentView = { type: 'radio' };
   closeSidebar();
   renderSidebar();
-  document.getElementById('content-title').textContent = '📻 Radios web';
+  document.getElementById('content-title').textContent = '📻 Radios';
   document.getElementById('btn-add-feed').style.display = 'none';
   document.getElementById('content-badge').style.display = 'none';
 
+  // Par défaut : on ouvre sur les favorites s'il y en a, sinon sur la recherche
+  const hasFavs = Object.keys(getRadioFavorites()).length > 0;
+  radioView = hasFavs ? 'favorites' : 'search';
+
+  renderRadioView();
+}
+
+function renderRadioView() {
   const list = document.getElementById('episodes-list');
+  const favActive = radioView === 'favorites';
   list.innerHTML = `
+    <div style="display:flex;gap:8px;padding:10px;">
+      <button class="${favActive ? 'btn-ok' : 'btn-cancel'}" onclick="switchRadioView('favorites')" style="flex:1;padding:10px;">★ Mes favorites</button>
+      <button class="${favActive ? 'btn-cancel' : 'btn-ok'}" onclick="switchRadioView('search')" style="flex:1;padding:10px;">🔍 Rechercher</button>
+    </div>
+    <div id="radio-view-content"></div>`;
+
+  if (favActive) renderRadioFavorites();
+  else renderRadioSearch();
+}
+
+function switchRadioView(view) {
+  radioView = view;
+  renderRadioView();
+}
+
+function renderRadioFavorites() {
+  const content = document.getElementById('radio-view-content');
+  const favs = getRadioFavoritesSorted();
+  document.getElementById('content-badge').style.display = 'none';
+
+  if (!favs.length) {
+    content.innerHTML = '<div class="empty-text">Aucune radio favorite.<br><br>Va dans "🔍 Rechercher" pour trouver des stations et les ajouter avec l\'étoile ☆.</div>';
+    return;
+  }
+
+  const eps = favs.map(s => ({
+    title: s.name?.trim() || 'Sans nom',
+    url: s.url_resolved || s.url,
+    feed: s.country || 'Radio',
+    type: 'radio',
+    image: s.favicon || '',
+    description: [s.tags, s.language, s.codec, s.bitrate ? s.bitrate + ' kbps' : ''].filter(Boolean).join(' · '),
+    isRadio: true,
+    stationuuid: s.stationuuid,
+    _raw: s,
+  }));
+  currentEpisodes = eps;
+
+  content.innerHTML = '';
+  eps.forEach((ep, idx) => {
+    const div = document.createElement('div');
+    div.className = 'episode-item';
+    const imgHtml = ep.image
+      ? `<img src="${escapeAttr(ep.image)}" loading="lazy" onerror="this.style.display='none';this.parentNode.textContent='📻'" style="width:100%;height:100%;object-fit:cover;">`
+      : '📻';
+    const upBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();moveRadioFavorite('${escapeAttr(ep.stationuuid)}',-1)" title="Monter" ${idx === 0 ? 'disabled style="opacity:0.3;"' : ''}>▲</button>`;
+    const downBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();moveRadioFavorite('${escapeAttr(ep.stationuuid)}',1)" title="Descendre" ${idx === eps.length - 1 ? 'disabled style="opacity:0.3;"' : ''}>▼</button>`;
+    const removeBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();toggleRadioFavBtn('${escapeAttr(ep.stationuuid)}', this)" title="Retirer des favoris" style="color:#fbbf24;border-color:#fbbf24;">★</button>`;
+    div.innerHTML = `
+      <div class="ep-thumb">${imgHtml}</div>
+      <div class="ep-info">
+        <div class="ep-title">${escapeHTML(ep.title)}</div>
+        <div class="ep-meta">
+          <span class="ep-source">${escapeHTML(ep.feed)}</span>
+          <span>${escapeHTML(ep.description)}</span>
+        </div>
+      </div>
+      <div class="ep-actions-right">${upBtn}${downBtn}${removeBtn}</div>`;
+    div._station = ep._raw;
+    div.onclick = () => playEpisode(ep, div);
+    content.appendChild(div);
+  });
+
+  const badge = document.getElementById('content-badge');
+  badge.textContent = `${eps.length} favorite${eps.length > 1 ? 's' : ''}`;
+  badge.className = 'badge badge-purple';
+  badge.style.display = 'inline';
+}
+
+async function renderRadioSearch() {
+  const content = document.getElementById('radio-view-content');
+  content.innerHTML = `
     <div style="padding:10px;display:flex;gap:8px;flex-wrap:wrap;background:var(--bg2);border-radius:6px;margin-bottom:10px;">
       <select class="modal-select" id="radio-country" style="flex:1;min-width:140px;margin:0;"><option value="">Pays — chargement…</option></select>
       <select class="modal-select" id="radio-tag" style="flex:1;min-width:140px;margin:0;"><option value="">Genre — chargement…</option></select>
@@ -1072,24 +1176,19 @@ async function showRadios() {
     </div>
     <div id="radio-list"><div class="loading-text">Chargement<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div></div>`;
 
-  // Chargement parallèle des listes
   const [countries, tags] = await Promise.all([loadRadioCountries(), loadRadioTags()]);
 
-  // Remplit la liste des pays
   const countrySel = document.getElementById('radio-country');
   if (countrySel) {
     countrySel.innerHTML = '<option value="">Tous les pays</option>' +
       countries.map(c => `<option value="${escapeAttr(c.name)}" ${c.name === radioFilters.country ? 'selected' : ''}>${escapeHTML(c.name)} (${c.stationcount})</option>`).join('');
   }
-
-  // Remplit la liste des genres
   const tagSel = document.getElementById('radio-tag');
   if (tagSel) {
     tagSel.innerHTML = '<option value="">Tous les genres</option>' +
       tags.map(t => `<option value="${escapeAttr(t.name)}" ${t.name === radioFilters.tag ? 'selected' : ''}>${escapeHTML(t.name)} (${t.stationcount})</option>`).join('');
   }
 
-  // Affiche directement les favoris + résultats si on a déjà des filtres
   await searchRadios();
 
   ['radio-country','radio-tag'].forEach(id => {
@@ -1120,29 +1219,13 @@ async function searchRadios() {
     const res = await fetch(`${RADIO_API}?${params.toString()}`);
     const stations = await res.json();
 
-    // Récupère les favoris pour ajouter en tête
-    const favs = getRadioFavorites();
-    const favList = Object.values(favs);
-
-    // Filtre les favoris selon les critères de recherche
-    const matchedFavs = favList.filter(f => {
-      if (radioFilters.country && f.country !== radioFilters.country) return false;
-      if (radioFilters.tag && !(f.tags || '').toLowerCase().includes(radioFilters.tag.toLowerCase())) return false;
-      if (radioFilters.name && !(f.name || '').toLowerCase().includes(radioFilters.name.toLowerCase())) return false;
-      return true;
-    });
-
-    // Combine : favoris en tête, puis résultats (sans doublon avec les favoris)
-    const favUuids = new Set(matchedFavs.map(f => f.stationuuid));
-    const combined = [...matchedFavs, ...stations.filter(s => !favUuids.has(s.stationuuid))];
-
-    if (!combined.length) {
+    if (!stations.length) {
       box.innerHTML = '<div class="empty-text">Aucune station trouvée.</div>';
       currentEpisodes = [];
       return;
     }
 
-    const eps = combined.map(s => ({
+    const eps = stations.map(s => ({
       title: s.name?.trim() || 'Sans nom',
       date: '',
       url: s.url_resolved || s.url,
@@ -1175,14 +1258,12 @@ async function searchRadios() {
           </div>
         </div>
         <div class="ep-actions-right">${starBtn}</div>`;
-      // Stocke la station brute sur l'élément pour le toggle favoris
       div._station = ep._raw;
       div.onclick = () => playEpisode(ep, div);
       box.appendChild(div);
     });
     const badge = document.getElementById('content-badge');
-    const favCount = matchedFavs.length;
-    badge.textContent = `${eps.length} stations${favCount ? ` · ${favCount} favoris` : ''}`;
+    badge.textContent = `${eps.length} stations`;
     badge.className = 'badge badge-purple';
     badge.style.display = 'inline';
   } catch(e) {
@@ -1195,8 +1276,9 @@ function toggleRadioFavBtn(uuid, btn) {
   const station = item?._station;
   if (!station) return;
   toggleRadioFavorite(uuid, station);
-  // Rafraîchit la vue pour reclasser
-  searchRadios();
+  // Rafraîchit la vue active
+  if (radioView === 'favorites') renderRadioFavorites();
+  else searchRadios();
 }
 
 // ════════════════════════════════════════════
