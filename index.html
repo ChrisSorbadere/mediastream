@@ -2042,6 +2042,7 @@ function showSettingsModal() {
     <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="exportData()">📥 Exporter (JSON)</button>
     <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="document.getElementById('import-file').click()">📤 Importer un JSON</button>
     <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importData(event)" />
+    <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="clearAppCache()">🧹 Vider le cache (sans perdre mes données)</button>
     <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="if(confirm('Vider l\\'historique ?')){localStorage.removeItem(HISTORY_KEY);location.reload();}">🗑 Vider l'historique</button>
     <button class="btn-danger" style="width:100%;" onclick="if(confirm('Tout réinitialiser ?')){localStorage.clear();location.reload();}">⚠ Tout réinitialiser</button>
     <div class="modal-label" style="margin-top:14px;">À propos</div>
@@ -2052,6 +2053,40 @@ function showSettingsModal() {
 
 function closeModal() { document.getElementById('modal').style.display = 'none'; }
 function closeModalOutside(e) { if (e.target.id === 'modal') closeModal(); }
+
+async function clearAppCache() {
+  if (!confirm('Vider le cache de l\'application ?\n\nCela supprime les fichiers temporaires et force le rechargement de la dernière version, SANS toucher à tes podcasts, dossiers, positions ni historique.')) return;
+  try {
+    // 1) Supprime tous les caches (Cache Storage API) — fichiers de l'app, anciens catalogues, etc.
+    if ('caches' in window) {
+      const names = await caches.keys();
+      await Promise.all(names.map(n => caches.delete(n)));
+    }
+    // 2) Désinscrit les Service Workers (force le rechargement du code à jour)
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
+    }
+    // 3) Nettoie les anciennes clés résiduelles dans localStorage (sans toucher aux données utiles)
+    const keysToClean = [
+      'mediastream_audiobook_cache_v1',
+      'mediastream_audiobook_preload_progress_v1',
+      'mediastream_audiobook_preload_progress_v2',
+    ];
+    keysToClean.forEach(k => { try { localStorage.removeItem(k); } catch(e) {} });
+    // On nettoie aussi toute clé de cache audio-livres versionnée
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('mediastream_audiobook_cache')) {
+        try { localStorage.removeItem(key); } catch(e) {}
+      }
+    }
+    alert('Cache vidé. L\'application va se recharger.');
+    location.reload(true);
+  } catch(e) {
+    alert('Erreur lors du nettoyage : ' + e.message);
+  }
+}
 
 function saveModal() {
   const errEl = document.getElementById('modal-error');
@@ -2167,7 +2202,7 @@ function deleteDrive(idx) {
 // ═══════════════════════════════════════════
 // IMPORT / EXPORT
 // ═══════════════════════════════════════════
-function exportData() {
+async function exportData() {
   const data = {
     folders,
     driveFolders,
@@ -2176,16 +2211,31 @@ function exportData() {
     radioFavorites: getRadioFavorites(),
     queue: getQueue(),
   };
-  // type 'application/octet-stream' force le téléchargement (évite l'ouverture auto sur Android)
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/octet-stream' });
+  const json = JSON.stringify(data, null, 2);
+  const filename = 'mediastream-' + new Date().toISOString().slice(0,10) + '.json';
+
+  // 1) Tente le partage de fichier natif Android (menu "Enregistrer / Envoyer" sans ouverture forcée)
+  try {
+    const file = new File([json], filename, { type: 'application/json' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: 'Sauvegarde MediaStream' });
+      toast('💾 Sauvegarde partagée');
+      return;
+    }
+  } catch(e) {
+    // Si l'utilisateur annule le partage ou erreur, on bascule sur le téléchargement classique
+    if (e.name === 'AbortError') return; // annulation volontaire
+  }
+
+  // 2) Repli : téléchargement classique
+  const blob = new Blob([json], { type: 'application/octet-stream' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'mediastream-' + new Date().toISOString().slice(0,10) + '.json';
+  a.download = filename;
   a.style.display = 'none';
   document.body.appendChild(a);
   a.click();
-  // Nettoyage après le déclenchement du téléchargement
   setTimeout(() => {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
