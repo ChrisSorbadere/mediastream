@@ -2176,11 +2176,21 @@ function exportData() {
     radioFavorites: getRadioFavorites(),
     queue: getQueue(),
   };
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  // type 'application/octet-stream' force le téléchargement (évite l'ouverture auto sur Android)
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
+  a.href = url;
   a.download = 'mediastream-' + new Date().toISOString().slice(0,10) + '.json';
+  a.style.display = 'none';
+  document.body.appendChild(a);
   a.click();
+  // Nettoyage après le déclenchement du téléchargement
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 1000);
+  toast('💾 Sauvegarde exportée');
 }
 function importData(e) {
   const file = e.target.files[0];
