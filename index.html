@@ -1335,10 +1335,10 @@ function selectDrive(idx) {
   renderSidebar();
   document.getElementById('content-title').textContent = '☁ ' + d.name;
   document.getElementById('btn-add-feed').style.display = 'none';
-  loadDriveFolder(d.id);
+  loadDriveFolder(d.id, d.name);
 }
 
-async function loadDriveFolder(folderId) {
+async function loadDriveFolder(folderId, folderName) {
   const list = document.getElementById('episodes-list');
   list.innerHTML = `<div class="loading-text">Chargement Drive<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>`;
   currentEpisodes = [];
@@ -1359,11 +1359,12 @@ async function loadDriveFolder(folderId) {
       title: f.name,
       date: '',
       url: `https://www.googleapis.com/drive/v3/files/${f.id}?alt=media&key=${DRIVE_API_KEY}`,
-      feed: 'Google Drive',
+      feed: folderName || 'Google Drive',
       type: f.mimeType.includes('video') ? 'video' : 'drive',
       mimeType: f.mimeType,
       driveId: f.id,
       isDrive: true,
+      folderName: folderName || '',
     }));
     currentEpisodes = eps;
     renderEpisodes(eps);
@@ -1383,6 +1384,28 @@ async function loadDriveFolder(folderId) {
 const audio = document.getElementById('audio-player');
 const video = document.getElementById('video-player');
 let activeMedia = audio; // alias vers le lecteur actuellement actif
+
+function setPlayerArt(ep, isVideo) {
+  const artEl = document.getElementById('player-art');
+  // Détermine l'emoji de repli selon le type
+  let fallback;
+  if (isVideo && audioOnlyMode) fallback = '🎧';
+  else if (isVideo) fallback = '🎬';
+  else if (ep.type === 'radio') fallback = '📻';
+  else if (ep.type === 'drive') {
+    // Pour le Drive : premier caractère du nom du dossier (souvent un emoji)
+    const fn = (ep.folderName || '').trim();
+    fallback = fn ? Array.from(fn)[0] : '☁';
+  }
+  else fallback = '🎙';
+
+  // Si une image (jaquette radio ou podcast) est disponible, on l'affiche
+  if (ep.image && (ep.type === 'radio' || ep.type === 'audio' || !ep.type)) {
+    artEl.innerHTML = `<img src="${escapeAttr(ep.image)}" style="width:100%;height:100%;object-fit:cover;border-radius:6px;" onerror="this.parentNode.textContent='${fallback}'">`;
+  } else {
+    artEl.textContent = fallback;
+  }
+}
 
 function playEpisode(ep, el) {
   if (activeEpisodeEl) activeEpisodeEl.classList.remove('playing');
@@ -1417,7 +1440,7 @@ function playEpisode(ep, el) {
 
   document.getElementById('player-title').textContent = ep.title;
   document.getElementById('player-sub').textContent = ep.feed || '';
-  document.getElementById('player-art').textContent = (isVideo && audioOnlyMode) ? '🎧' : (isVideo ? '🎬' : (ep.type === 'radio' ? '📻' : (ep.type === 'audiobook' ? '📖' : (ep.type === 'drive' ? '☁' : '🎙'))));
+  setPlayerArt(ep, isVideo);
 
   // Bouton "Audio seul" visible uniquement pour les vidéos
   const btnAO = document.getElementById('btn-audio-only');
@@ -1759,9 +1782,15 @@ function showDiscoverModal() {
   document.getElementById('modal-title').textContent = '🔍 Découvrir un podcast';
   document.getElementById('modal-error').style.display = 'none';
   document.getElementById('modal-body').innerHTML = `
-    <div class="modal-label">Recherche dans le catalogue Apple Podcasts</div>
+    <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:12px;padding:10px;background:var(--bg3);border-radius:6px;">
+      <b>Deux façons de trouver un podcast :</b>
+      <br>1️⃣ <b>Recherche par nom</b> ci-dessous (catalogue Apple Podcasts)
+      <br>2️⃣ <b>À partir de l'adresse d'un site</b> avec
+      <a href="https://rss.com/tools/find-my-feed/" target="_blank" rel="noopener" style="color:var(--accent);">l'outil rss.com ↗</a>
+    </div>
+    <div class="modal-label">1️⃣ Rechercher par nom</div>
     <input class="modal-input" id="discover-query" placeholder="Ex. Le Collimateur, philosophie, histoire…" />
-    <div id="discover-results" style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;background:var(--bg3);min-height:60px;">
+    <div id="discover-results" style="max-height:360px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;background:var(--bg3);min-height:60px;">
       <div class="empty-text" style="padding:20px;font-size:13px;">Tape un nom de podcast pour rechercher</div>
     </div>`;
   document.getElementById('modal-actions').innerHTML = `<button class="btn-cancel" onclick="closeModal()">Fermer</button>`;
