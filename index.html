@@ -783,18 +783,26 @@ async function runVerification() {
       detail = e.name === 'TimeoutError' ? 'Délai dépassé' : 'Inaccessible';
     }
 
-    if (status === 'ok') okCount++;
+    if (status === 'ok') { okCount++; }
     else if (status === 'old') oldCount++;
     else errCount++;
 
-    const icon = status === 'ok' ? '✅' : (status === 'old' ? '⚠️' : '❌');
-    const color = status === 'ok' ? 'var(--green)' : (status === 'old' ? '#fbbf24' : 'var(--red)');
+    // Mise à jour du compteur de progression pendant le balayage
+    if (btn) btn.textContent = `Vérification… (${i + 1}/${allFeeds.length})`;
+
+    // On n'affiche QUE les podcasts problématiques (anciens ou en erreur)
+    if (status === 'ok') {
+      await new Promise(r => setTimeout(r, 300));
+      continue;
+    }
+
+    const icon = status === 'old' ? '⚠️' : '❌';
+    const color = status === 'old' ? '#fbbf24' : 'var(--red)';
     const row = document.createElement('div');
     row.className = 'episode-item';
-    // Bouton supprimer uniquement pour les podcasts problématiques (anciens ou en erreur)
-    const delBtn = (status === 'old' || status === 'error')
-      ? `<button class="ep-icon-btn" onclick="event.stopPropagation();deleteFeedFromVerify('${escapeAttr(feed.folderId)}','${escapeAttr(feed.url)}','${escapeAttr(feed.name)}',this)" title="Supprimer ce podcast" style="color:var(--red);border-color:rgba(248,81,73,0.4);">🗑</button>`
-      : '';
+    // Bouton réparer (cherche un nouveau flux RSS) + bouton supprimer
+    const repairBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();repairFeed('${escapeAttr(feed.folderId)}','${escapeAttr(feed.url)}','${escapeAttr(feed.name)}',this)" title="Chercher un flux de remplacement" style="color:var(--accent);border-color:rgba(88,166,255,0.4);">🔧</button>`;
+    const delBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();deleteFeedFromVerify('${escapeAttr(feed.folderId)}','${escapeAttr(feed.url)}','${escapeAttr(feed.name)}',this)" title="Supprimer ce podcast" style="color:var(--red);border-color:rgba(248,81,73,0.4);">🗑</button>`;
     row.innerHTML = `
       <div class="ep-thumb" style="font-size:18px;">${icon}</div>
       <div class="ep-info">
@@ -804,7 +812,7 @@ async function runVerification() {
           <span style="color:${color};">${escapeHTML(detail)}</span>
         </div>
       </div>
-      <div class="ep-actions-right">${delBtn}</div>`;
+      <div class="ep-actions-right">${repairBtn}${delBtn}</div>`;
     results.appendChild(row);
 
     // Petite pause entre chaque requête pour ménager le proxy
@@ -819,7 +827,11 @@ async function runVerification() {
   // Résumé en tête
   const summary = document.createElement('div');
   summary.style.cssText = 'padding:12px;background:var(--bg2);border-radius:8px;margin-bottom:12px;font-size:14px;line-height:1.8;';
-  summary.innerHTML = `<b>Résumé :</b><br>✅ ${okCount} à jour · ⚠️ ${oldCount} anciens · ❌ ${errCount} en erreur`;
+  if (oldCount === 0 && errCount === 0) {
+    summary.innerHTML = `<b>✅ Tout va bien !</b><br>Les ${okCount} podcasts fonctionnent et sont à jour.`;
+  } else {
+    summary.innerHTML = `<b>Résumé :</b><br>✅ ${okCount} OK · ⚠️ ${oldCount} anciens · ❌ ${errCount} en erreur<br><small style="color:var(--text3);">Seuls les podcasts à corriger sont affichés ci-dessous.</small>`;
+  }
   results.insertBefore(summary, results.firstChild);
 
   verifyInProgress = false;
@@ -838,6 +850,72 @@ function deleteFeedFromVerify(folderId, feedUrl, feedName, btnEl) {
     row.style.transition = 'opacity 0.2s';
     row.style.opacity = '0';
     setTimeout(() => row.remove(), 200);
+  }
+}
+
+async function repairFeed(folderId, oldUrl, feedName, btnEl) {
+  const row = btnEl?.closest('.episode-item');
+  // Indicateur de recherche
+  btnEl.textContent = '⏳';
+  btnEl.disabled = true;
+  try {
+    // Recherche le podcast par son nom dans le catalogue Apple
+    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(feedName)}&media=podcast&country=FR&limit=5`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const results = (data.results || []).filter(r => r.feedUrl);
+
+    if (!results.length) {
+      toast('❌ Aucun flux de remplacement trouvé');
+      btnEl.textContent = '🔧';
+      btnEl.disabled = false;
+      return;
+    }
+
+    // Prend le meilleur résultat (le premier)
+    const best = results[0];
+    const newUrl = best.feedUrl;
+
+    if (newUrl === oldUrl) {
+      toast('Le flux trouvé est identique à l\'actuel');
+      btnEl.textContent = '🔧';
+      btnEl.disabled = false;
+      return;
+    }
+
+    // Option B : on demande confirmation avant de remplacer
+    const ok = confirm(
+      `Flux trouvé pour "${feedName}" :\n\n` +
+      `${best.collectionName || feedName}\n` +
+      `${best.artistName || ''}\n\n` +
+      `Nouveau lien :\n${newUrl}\n\n` +
+      `Remplacer l'ancien lien par celui-ci ?`
+    );
+    if (!ok) {
+      btnEl.textContent = '🔧';
+      btnEl.disabled = false;
+      return;
+    }
+
+    // Remplacement
+    const folder = folders.find(f => f.id === folderId);
+    if (!folder) return;
+    const feed = folder.feeds.find(f => f.url === oldUrl);
+    if (feed) {
+      feed.url = newUrl;
+      saveData();
+      toast('✅ Lien réparé !');
+      if (row) {
+        row.style.transition = 'opacity 0.2s';
+        row.style.opacity = '0.4';
+        const detail = row.querySelector('.ep-meta span:last-child');
+        if (detail) { detail.textContent = '✅ Lien remplacé — relance la vérification'; detail.style.color = 'var(--green)'; }
+      }
+    }
+  } catch(e) {
+    toast('❌ Erreur lors de la recherche');
+    btnEl.textContent = '🔧';
+    btnEl.disabled = false;
   }
 }
 
@@ -1782,16 +1860,25 @@ function showDiscoverModal() {
   document.getElementById('modal-title').textContent = '🔍 Découvrir un podcast';
   document.getElementById('modal-error').style.display = 'none';
   document.getElementById('modal-body').innerHTML = `
-    <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:12px;padding:10px;background:var(--bg3);border-radius:6px;">
-      <b>Deux façons de trouver un podcast :</b>
-      <br>1️⃣ <b>Recherche par nom</b> ci-dessous (catalogue Apple Podcasts)
-      <br>2️⃣ <b>À partir de l'adresse d'un site</b> avec
-      <a href="https://rss.com/tools/find-my-feed/" target="_blank" rel="noopener" style="color:var(--accent);">l'outil rss.com ↗</a>
+    <div style="display:flex;gap:8px;margin-bottom:14px;">
+      <button class="btn-ok" id="src-apple" onclick="setDiscoverSource('apple')" style="flex:1;padding:10px;">🍎 Apple Podcasts</button>
+      <button class="btn-cancel" id="src-rss" onclick="setDiscoverSource('rss')" style="flex:1;padding:10px;">🔗 rss.com</button>
     </div>
-    <div class="modal-label">1️⃣ Rechercher par nom</div>
-    <input class="modal-input" id="discover-query" placeholder="Ex. Le Collimateur, philosophie, histoire…" />
-    <div id="discover-results" style="max-height:360px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;background:var(--bg3);min-height:60px;">
-      <div class="empty-text" style="padding:20px;font-size:13px;">Tape un nom de podcast pour rechercher</div>
+    <div id="discover-apple-zone">
+      <div class="modal-label">Rechercher par nom</div>
+      <input class="modal-input" id="discover-query" placeholder="Ex. Le Collimateur, philosophie, histoire…" />
+      <div id="discover-results" style="max-height:340px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;background:var(--bg3);min-height:60px;">
+        <div class="empty-text" style="padding:20px;font-size:13px;">Tape un nom de podcast pour rechercher</div>
+      </div>
+    </div>
+    <div id="discover-rss-zone" style="display:none;">
+      <div style="font-size:13px;color:var(--text2);line-height:1.7;padding:14px;background:var(--bg3);border-radius:6px;">
+        L'outil <b>rss.com</b> trouve l'adresse du flux RSS à partir de l'adresse d'un site web ou du nom d'un podcast.
+        <br><br>
+        <a href="https://rss.com/tools/find-my-feed/" target="_blank" rel="noopener" style="color:var(--accent);font-weight:600;">Ouvrir l'outil rss.com ↗</a>
+        <br><br>
+        <small style="color:var(--text3);">Copie l'URL du flux obtenue, puis ajoute-la via le bouton "+ Podcast" du dossier.</small>
+      </div>
     </div>`;
   document.getElementById('modal-actions').innerHTML = `<button class="btn-cancel" onclick="closeModal()">Fermer</button>`;
   document.getElementById('modal').style.display = 'flex';
@@ -1804,6 +1891,25 @@ function showDiscoverModal() {
     if (q.length < 2) return;
     timer = setTimeout(() => searchPodcasts(q), 400);
   });
+}
+
+function setDiscoverSource(src) {
+  const appleZone = document.getElementById('discover-apple-zone');
+  const rssZone = document.getElementById('discover-rss-zone');
+  const appleBtn = document.getElementById('src-apple');
+  const rssBtn = document.getElementById('src-rss');
+  if (src === 'apple') {
+    appleZone.style.display = 'block';
+    rssZone.style.display = 'none';
+    appleBtn.className = 'btn-ok';
+    rssBtn.className = 'btn-cancel';
+    setTimeout(() => document.getElementById('discover-query')?.focus(), 50);
+  } else {
+    appleZone.style.display = 'none';
+    rssZone.style.display = 'block';
+    appleBtn.className = 'btn-cancel';
+    rssBtn.className = 'btn-ok';
+  }
 }
 
 async function searchPodcasts(query) {
