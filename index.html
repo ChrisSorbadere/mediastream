@@ -266,6 +266,7 @@ const STORAGE_KEY = 'mediastream_data_v2';
 const POSITION_KEY = 'mediastream_positions_v2';
 const HISTORY_KEY = 'mediastream_history_v2';
 const QUEUE_KEY = 'mediastream_queue_v1';
+const DELETED_FEEDS_KEY = 'mediastream_deleted_feeds_v1'; // URLs des podcasts par défaut supprimés volontairement
 
 const DEFAULT_FOLDERS = [
   {
@@ -334,6 +335,30 @@ let expandedFolders = new Set(); // dossiers dépliés
 // ═══════════════════════════════════════════
 // PERSISTANCE
 // ═══════════════════════════════════════════
+function getDeletedFeeds() {
+  try { return JSON.parse(localStorage.getItem(DELETED_FEEDS_KEY) || '[]'); }
+  catch(e) { return []; }
+}
+function markFeedDeleted(url) {
+  try {
+    const list = getDeletedFeeds();
+    if (!list.includes(url)) {
+      list.push(url);
+      localStorage.setItem(DELETED_FEEDS_KEY, JSON.stringify(list));
+    }
+  } catch(e) {}
+}
+function unmarkFeedDeleted(url) {
+  // Si on réajoute volontairement un podcast supprimé, on le retire de la liste des suppressions
+  try {
+    let list = getDeletedFeeds();
+    if (list.includes(url)) {
+      list = list.filter(u => u !== url);
+      localStorage.setItem(DELETED_FEEDS_KEY, JSON.stringify(list));
+    }
+  } catch(e) {}
+}
+
 function loadData() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -341,12 +366,20 @@ function loadData() {
       const data = JSON.parse(saved);
       folders = data.folders || JSON.parse(JSON.stringify(DEFAULT_FOLDERS));
       driveFolders = data.driveFolders || JSON.parse(JSON.stringify(DEFAULT_DRIVE_FOLDERS));
-      // Migration : ajoute les nouveaux podcasts par défaut si absents
+      // Migration : ajoute les nouveaux podcasts par défaut SAUF ceux supprimés volontairement
+      const deleted = getDeletedFeeds();
       let migrated = false;
       DEFAULT_FOLDERS.forEach(def => {
         const existing = folders.find(f => f.id === def.id);
-        if (!existing) { folders.push(JSON.parse(JSON.stringify(def))); migrated = true; return; }
+        if (!existing) {
+          // Dossier par défaut absent : on le recrée sans les flux supprimés
+          const clone = JSON.parse(JSON.stringify(def));
+          clone.feeds = clone.feeds.filter(fd => !deleted.includes(fd.url));
+          folders.push(clone); migrated = true; return;
+        }
         def.feeds.forEach(defFeed => {
+          // On ne réinjecte un podcast par défaut que s'il n'a pas été supprimé volontairement
+          if (deleted.includes(defFeed.url)) return;
           if (!existing.feeds.some(f => f.url === defFeed.url)) {
             existing.feeds.push({ ...defFeed }); migrated = true;
           }
@@ -850,6 +883,7 @@ function deleteFeedFromVerify(folderId, feedUrl, feedName, btnEl) {
   const folder = folders.find(f => f.id === folderId);
   if (!folder) return;
   folder.feeds = folder.feeds.filter(f => f.url !== feedUrl);
+  markFeedDeleted(feedUrl); // empêche la réinjection au prochain démarrage
   saveData();
   renderSidebar();
   // Retire visuellement la ligne du podcast supprimé
@@ -911,6 +945,7 @@ async function repairFeed(folderId, oldUrl, feedName, btnEl) {
     const feed = folder.feeds.find(f => f.url === oldUrl);
     if (feed) {
       feed.url = newUrl;
+      unmarkFeedDeleted(newUrl); // au cas où ce nouveau flux aurait été supprimé avant
       saveData();
       toast('✅ Lien réparé !');
       if (row) {
@@ -2027,6 +2062,7 @@ function confirmAddDiscovered(feedUrl) {
     return;
   }
   folder.feeds.push({ name, url: feedUrl });
+  unmarkFeedDeleted(feedUrl);
   saveData();
   closeModal();
   renderSidebar();
@@ -2107,6 +2143,7 @@ function saveModal() {
     const folder = folders.find(f => f.id === folderId);
     if (!folder) { errEl.textContent = 'Dossier introuvable.'; errEl.style.display='block'; return; }
     folder.feeds.push({ name, url });
+    unmarkFeedDeleted(url);
     saveData(); closeModal();
     if (currentView?.type === 'folder' && currentView.id === folderId) loadFolder(folder);
     renderSidebar();
@@ -2154,6 +2191,8 @@ function saveModal() {
 
 function removeFeed(folderId, idx) {
   const folder = folders.find(f => f.id === folderId);
+  const removed = folder.feeds[idx];
+  if (removed) markFeedDeleted(removed.url); // empêche la réinjection au prochain démarrage
   folder.feeds.splice(idx, 1);
   saveData(); showFolderManager(folderId);
   if (currentView?.type === 'folder' && currentView.id === folderId) loadFolder(folder);
