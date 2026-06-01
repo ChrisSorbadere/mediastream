@@ -489,6 +489,18 @@ function getNextFromQueue() {
   return next;
 }
 
+// Joue un épisode de la file en cliquant dessus : on retire cet épisode (et ceux d'avant) de la file
+function playFromQueue(idx) {
+  const q = getQueue();
+  if (idx < 0 || idx >= q.length) return;
+  const ep = q[idx];
+  // On retire de la file l'épisode choisi et tous ceux situés avant lui
+  const remaining = q.slice(idx + 1);
+  saveQueue(remaining);
+  playEpisode(ep, null);
+  if (currentView?.type === 'queue') showQueue();
+}
+
 // Petit toast de confirmation
 let toastTimer = null;
 function toast(msg) {
@@ -548,7 +560,7 @@ function showQueue() {
         ${upBtn}${downBtn}
         <button class="ep-icon-btn" onclick="event.stopPropagation();removeFromQueue('${escapeAttr(ep.url)}')" title="Retirer de la file">✕</button>
       </div>`;
-    div.onclick = () => playEpisode(ep, div);
+    div.onclick = () => playFromQueue(idx);
     container.appendChild(div);
   });
 
@@ -1785,15 +1797,19 @@ function getCurrentIndex() {
 
 function playNext() {
   if (!currentEpisodes.length) return;
+  const idx = getCurrentIndex();
   let next;
   if (shuffleMode) {
-    let idx;
-    do { idx = Math.floor(Math.random() * currentEpisodes.length); }
-    while (currentEpisodes.length > 1 && currentEpisodes[idx].url === activeEpisode?.url);
-    next = currentEpisodes[idx];
+    // Si l'épisode courant n'est pas dans la liste, on évite quand même de le reprendre
+    let pick;
+    do { pick = Math.floor(Math.random() * currentEpisodes.length); }
+    while (currentEpisodes.length > 1 && currentEpisodes[pick].url === activeEpisode?.url);
+    next = currentEpisodes[pick];
   } else {
-    const idx = getCurrentIndex();
-    if (idx === -1) next = currentEpisodes[0];
+    if (idx === -1) {
+      // Épisode courant absent de la liste affichée : rien à enchaîner, on s'arrête proprement
+      return;
+    }
     else if (idx < currentEpisodes.length - 1) next = currentEpisodes[idx + 1];
     else if (loopMode === 'all') next = currentEpisodes[0]; // boucle liste
     else return;
