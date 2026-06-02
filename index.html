@@ -324,6 +324,7 @@ let currentView = null; // {type:'folder'|'recents'|'queue'|'verify'|'drive'|'ra
 let currentEpisodes = [];
 let activeEpisodeEl = null;
 let activeEpisode = null;
+let playingFromQueue = false; // true si la lecture en cours a été lancée depuis la file d'attente
 let modalMode = '';
 let modalContext = null;
 let shuffleMode = false;
@@ -497,7 +498,7 @@ function playFromQueue(idx) {
   // On retire de la file l'épisode choisi et tous ceux situés avant lui
   const remaining = q.slice(idx + 1);
   saveQueue(remaining);
-  playEpisode(ep, null);
+  playEpisode(ep, null, true); // lecture depuis la file
   if (currentView?.type === 'queue') showQueue();
 }
 
@@ -1647,10 +1648,11 @@ function togglePlayerCollapse() {
   }
 }
 
-function playEpisode(ep, el) {
+function playEpisode(ep, el, fromQueue = false) {
   if (activeEpisodeEl) activeEpisodeEl.classList.remove('playing');
   if (el) { el.classList.add('playing'); activeEpisodeEl = el; }
   activeEpisode = ep;
+  playingFromQueue = fromQueue; // mémorise si la lecture vient de la file d'attente
 
   // Affiche le lecteur (masqué au démarrage tant que rien n'est lu)
   const playerEl = document.getElementById('player');
@@ -1754,14 +1756,30 @@ function playEpisode(ep, el) {
       return;
     }
     if (loopMode === 'one') { m.currentTime = 0; m.play(); return; }
-    // Priorité à la file d'attente
-    const queued = getNextFromQueue();
-    if (queued) {
-      playEpisode(queued, null);
-      if (currentView?.type === 'queue') showQueue(); // rafraîchit l'affichage de la file
-      return;
+
+    if (playingFromQueue) {
+      // On suivait la file : on continue avec la file, puis on bascule sur la liste courante
+      const queued = getNextFromQueue();
+      if (queued) {
+        playEpisode(queued, null, true);
+        if (currentView?.type === 'queue') showQueue();
+        return;
+      }
+      playNext(); // file vide : on reprend la liste affichée
+    } else {
+      // On suivait un dossier/liste : on continue dans le dossier en priorité
+      const hasNextInList = !shuffleMode && getCurrentIndex() !== -1 && getCurrentIndex() < currentEpisodes.length - 1;
+      if (hasNextInList || shuffleMode || loopMode === 'all') {
+        playNext();
+        return;
+      }
+      // Dossier épuisé : la file d'attente prend le relais
+      const queued = getNextFromQueue();
+      if (queued) {
+        playEpisode(queued, null, true);
+        if (currentView?.type === 'queue') showQueue();
+      }
     }
-    playNext();
   });
   m.addEventListener('error', () => {
     if (m !== activeMedia || !activeEpisode) return;
