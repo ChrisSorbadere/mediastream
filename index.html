@@ -231,8 +231,8 @@
   <video id="video-player" controls preload="metadata" playsinline webkit-playsinline style="display:none;width:100%;max-height:240px;border-radius:6px;background:#000;margin-top:4px;"></video>
   <div class="control-bar">
     <button class="control-btn icon-only" onclick="playPrevious()" title="Précédent">⏮</button>
-    <button class="control-btn icon-only" onclick="seekBy(-10)" title="-10 secondes">⏪</button>
-    <button class="control-btn icon-only" onclick="seekBy(10)" title="+10 secondes">⏩</button>
+    <button class="control-btn icon-only" id="btn-rewind" title="-10s (maintenir pour reculer vite)">⏪</button>
+    <button class="control-btn icon-only" id="btn-forward" title="+10s (maintenir pour avancer vite)">⏩</button>
     <button class="control-btn icon-only" onclick="playNext()" title="Suivant">⏭</button>
     <div class="control-spacer"></div>
     <button class="control-btn icon-only" id="btn-audio-only" onclick="toggleAudioOnly()" title="Audio seul (continue en arrière-plan)" style="display:none;">🎧</button>
@@ -1848,6 +1848,69 @@ function seekBy(seconds) {
   if (!activeEpisode) return;
   activeMedia.currentTime = Math.max(0, Math.min(activeMedia.duration || Infinity, activeMedia.currentTime + seconds));
 }
+
+// ─── Avance/recul rapide avec appui maintenu ───
+let seekHoldTimer = null;     // délai avant démarrage de la répétition
+let seekRepeatTimer = null;   // répétition pendant le maintien
+let seekHoldFired = false;    // true si le maintien a déclenché la répétition
+
+function startSeekHold(direction) {
+  // direction : -1 (recul) ou +1 (avance)
+  if (!activeEpisode) return;
+  seekHoldFired = false;
+  // Après 500ms d'appui, on démarre la répétition accélérée
+  seekHoldTimer = setTimeout(() => {
+    seekHoldFired = true;
+    let step = 10; // commence à 10s
+    const tick = () => {
+      seekBy(direction * step);
+      // Accélération progressive : 10 → 30 → 60 (plafond)
+      if (step < 30) step = 30;
+      else if (step < 60) step = 60;
+      seekRepeatTimer = setTimeout(tick, 400);
+    };
+    tick();
+  }, 500);
+}
+
+function endSeekHold(direction) {
+  clearTimeout(seekHoldTimer);
+  clearTimeout(seekRepeatTimer);
+  seekHoldTimer = null;
+  seekRepeatTimer = null;
+  // Si le maintien n'a pas déclenché la répétition, c'est un appui simple : saut de 10s
+  if (!seekHoldFired) {
+    seekBy(direction * 10);
+  }
+  seekHoldFired = false;
+}
+
+// Branche les gestionnaires sur les deux boutons (souris + tactile)
+function setupSeekButtons() {
+  const fwd = document.getElementById('btn-forward');
+  const rew = document.getElementById('btn-rewind');
+  if (!fwd || !rew) return;
+
+  const bind = (btn, dir) => {
+    // Tactile
+    btn.addEventListener('touchstart', (e) => { e.preventDefault(); startSeekHold(dir); }, { passive: false });
+    btn.addEventListener('touchend', (e) => { e.preventDefault(); endSeekHold(dir); }, { passive: false });
+    btn.addEventListener('touchcancel', () => { clearTimeout(seekHoldTimer); clearTimeout(seekRepeatTimer); seekHoldFired = false; });
+    // Souris (PC)
+    btn.addEventListener('mousedown', () => startSeekHold(dir));
+    btn.addEventListener('mouseup', () => endSeekHold(dir));
+    btn.addEventListener('mouseleave', () => {
+      // Si on quitte le bouton en maintenant, on annule proprement
+      if (seekHoldTimer || seekRepeatTimer) {
+        clearTimeout(seekHoldTimer); clearTimeout(seekRepeatTimer);
+        seekHoldTimer = null; seekRepeatTimer = null; seekHoldFired = false;
+      }
+    });
+  };
+  bind(fwd, 1);
+  bind(rew, -1);
+}
+setupSeekButtons();
 
 function findEpisodeElement(ep) {
   const items = document.querySelectorAll('.episode-item');
