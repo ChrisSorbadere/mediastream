@@ -1518,7 +1518,8 @@ function renderEpisodes(eps) {
     const div = document.createElement('div');
     div.className = 'episode-item' + (finished ? ' finished' : '');
     const pos = getPosition(ep.url);
-    const resumeTxt = (pos > 5 && !finished) ? `<span class="ep-resume">⏱ ${formatTime(pos)}</span>` : '';
+    // Pas de badge de reprise affiché pour les fichiers Drive (musique/clips réécoutés depuis le début)
+    const resumeTxt = (pos > 5 && !finished && !ep.isDrive) ? `<span class="ep-resume">⏱ ${formatTime(pos)}</span>` : '';
     const finishedTxt = finished ? `<span class="ep-resume" style="background:rgba(110,118,129,0.2);color:var(--text3);">✓ Lu</span>` : '';
     const durationTxt = ep.duration ? `<span class="ep-source">${formatDuration(ep.duration)}</span>` : '';
     const icon = ep.type === 'video' ? '🎬' : (ep.type === 'drive' ? '☁' : '🎙');
