@@ -1737,8 +1737,10 @@ function playEpisode(ep, el, fromQueue = false) {
   if (!ep.isRadio) addToHistory(ep);
 
   const onceLoaded = () => {
-    // Pas de reprise position pour les radios (flux live)
-    if (!ep.isRadio) {
+    // Pas de reprise pour les radios (flux live)
+    // Pas de reprise pour les fichiers Drive courts (< 10 min) : ce sont des chansons, on les réécoute depuis le début
+    const isShortDriveFile = ep.isDrive && activeMedia.duration && activeMedia.duration < 600;
+    if (!ep.isRadio && !isShortDriveFile) {
       const saved = getPosition(ep.url);
       if (saved > 5 && activeMedia.duration && saved < activeMedia.duration - 10) {
         activeMedia.currentTime = saved;
@@ -1777,7 +1779,11 @@ function playEpisode(ep, el, fromQueue = false) {
   });
   let lastSave = 0;
   m.addEventListener('timeupdate', () => {
-    if (activeEpisode && !activeEpisode.isRadio && m === activeMedia && m.currentTime > 5 && Date.now() - lastSave > 5000) {
+    if (!activeEpisode || activeEpisode.isRadio || m !== activeMedia) return;
+    // Pas de sauvegarde pour les fichiers Drive courts (< 10 min) : chansons réécoutées depuis le début
+    const isShortDriveFile = activeEpisode.isDrive && m.duration && m.duration < 600;
+    if (isShortDriveFile) return;
+    if (m.currentTime > 5 && Date.now() - lastSave > 5000) {
       savePosition(activeEpisode.url, m.currentTime);
       lastSave = Date.now();
     }
