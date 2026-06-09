@@ -1372,9 +1372,27 @@ function showAudiobooks() {
 // ═══════════════════════════════════════════
 // CHARGEMENT FLUX
 // ═══════════════════════════════════════════
+// Fetch avec timeout plus long et nouvelle tentative automatique (robustesse réseau, surtout le soir)
+async function fetchWithRetry(url, { timeout = 30000, retries = 1 } = {}) {
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(timeout) });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res;
+    } catch(e) {
+      lastErr = e;
+      // Si ce n'est pas la dernière tentative, on attend un peu et on réessaie
+      if (attempt < retries) {
+        await new Promise(r => setTimeout(r, 800));
+      }
+    }
+  }
+  throw lastErr;
+}
+
 async function loadFeed(feed) {
-  const res = await fetch(PROXY + encodeURIComponent(feed.url), { signal: AbortSignal.timeout(15000) });
-  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const res = await fetchWithRetry(PROXY + encodeURIComponent(feed.url), { timeout: 30000, retries: 1 });
   const text = await res.text();
   const parser = new DOMParser();
   const xml = parser.parseFromString(text, 'application/xml');
@@ -1437,6 +1455,24 @@ async function loadFolder(folder) {
     if (r.status === 'fulfilled') allEps = allEps.concat(r.value);
     else failed.push(folder.feeds[i].name);
   });
+
+  // Si TOUS les flux ont échoué : probablement un souci réseau temporaire
+  if (allEps.length === 0 && failed.length > 0) {
+    list.innerHTML = `
+      <div class="empty-text" style="line-height:1.7;">
+        ⚠️ Impossible de charger les podcasts.<br><br>
+        C'est souvent dû à une <b>connexion lente ou instable</b> (fréquent le soir).
+        Les fichiers de ton Drive ne sont pas concernés car ils ne passent pas par le relais.
+        <br><br>
+        <button class="btn-ok" onclick="loadFolder(currentView.folder)" style="padding:10px 20px;">↻ Réessayer</button>
+      </div>`;
+    const badge = document.getElementById('content-badge');
+    badge.textContent = 'Échec réseau';
+    badge.className = 'badge badge-red';
+    badge.style.display = 'inline';
+    return;
+  }
+
   allEps.sort((a,b) => new Date(b.date||0) - new Date(a.date||0));
   currentEpisodes = allEps;
   renderEpisodes(allEps);
@@ -1444,7 +1480,7 @@ async function loadFolder(folder) {
   const badge = document.getElementById('content-badge');
   badge.textContent = allEps.length + ' épisodes' + (failed.length ? ` · ${failed.length} ⨯` : '');
   badge.style.display = 'inline';
-  badge.className = failed.length && !allEps.length ? 'badge badge-red' : 'badge badge-blue';
+  badge.className = failed.length ? 'badge badge-blue' : 'badge badge-blue';
   if (failed.length) console.warn('Échec:', failed);
 }
 
@@ -1482,7 +1518,8 @@ function renderEpisodes(eps) {
     const div = document.createElement('div');
     div.className = 'episode-item' + (finished ? ' finished' : '');
     const pos = getPosition(ep.url);
-    const resumeTxt = (pos > 5 && !finished) ? `<span class="ep-resume">⏱ ${formatTime(pos)}</span>` : '';
+    // Pas de badge de reprise affiché pour les fichiers Drive (musique/clips réécoutés depuis le début)
+    const resumeTxt = (pos > 5 && !finished && !ep.isDrive) ? `<span class="ep-resume">⏱ ${formatTime(pos)}</span>` : '';
     const finishedTxt = finished ? `<span class="ep-resume" style="background:rgba(110,118,129,0.2);color:var(--text3);">✓ Lu</span>` : '';
     const durationTxt = ep.duration ? `<span class="ep-source">${formatDuration(ep.duration)}</span>` : '';
     const icon = ep.type === 'video' ? '🎬' : (ep.type === 'drive' ? '☁' : '🎙');
@@ -1572,7 +1609,7 @@ async function loadDriveFolder(folderId, folderName) {
   currentEpisodes = [];
 
   try {
-    const url = `https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents+and+trashed=false&fields=files(id,name,mimeType,size)&orderBy=name&key=${DRIVE_API_KEY}`;
+    const url = `https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents+and+trashed=false&fields=files(id,name,mimeType,size)&orderBy=name&pageSize=1000&key=${DRIVE_API_KEY}`;
     const res = await fetch(url);
     const data = await res.json();
     if (data.error) throw new Error(data.error.message);
@@ -1701,8 +1738,10 @@ function playEpisode(ep, el, fromQueue = false) {
   if (!ep.isRadio) addToHistory(ep);
 
   const onceLoaded = () => {
-    // Pas de reprise position pour les radios (flux live)
-    if (!ep.isRadio) {
+    // Pas de reprise pour les radios (flux live)
+    // Pas de reprise pour les fichiers Drive courts (< 10 min) : ce sont des chansons, on les réécoute depuis le début
+    const isShortDriveFile = ep.isDrive && activeMedia.duration && activeMedia.duration < 600;
+    if (!ep.isRadio && !isShortDriveFile) {
       const saved = getPosition(ep.url);
       if (saved > 5 && activeMedia.duration && saved < activeMedia.duration - 10) {
         activeMedia.currentTime = saved;
@@ -1741,7 +1780,11 @@ function playEpisode(ep, el, fromQueue = false) {
   });
   let lastSave = 0;
   m.addEventListener('timeupdate', () => {
-    if (activeEpisode && !activeEpisode.isRadio && m === activeMedia && m.currentTime > 5 && Date.now() - lastSave > 5000) {
+    if (!activeEpisode || activeEpisode.isRadio || m !== activeMedia) return;
+    // Pas de sauvegarde pour les fichiers Drive courts (< 10 min) : chansons réécoutées depuis le début
+    const isShortDriveFile = activeEpisode.isDrive && m.duration && m.duration < 600;
+    if (isShortDriveFile) return;
+    if (m.currentTime > 5 && Date.now() - lastSave > 5000) {
       savePosition(activeEpisode.url, m.currentTime);
       lastSave = Date.now();
     }
