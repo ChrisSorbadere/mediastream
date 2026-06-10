@@ -43,8 +43,9 @@
   .sidebar-header { padding: 12px 14px 8px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
   .sidebar-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text3); }
   .btn-add { background: none; border: 1px solid var(--border); border-radius: 4px; color: var(--text2); font-size: 13px; padding: 4px 10px; cursor: pointer; }
-  .btn-add.active { background: var(--accent2); color: white; border-color: var(--accent); }
   .btn-add:hover { background: var(--bg3); color: var(--text); border-color: var(--border2); }
+  /* .active déclaré APRÈS :hover : sinon le hover "collant" du tactile écrase la couleur d'état */
+  .btn-add.active, .btn-add.active:hover { background: var(--accent2); color: white; border-color: var(--accent); }
   .sidebar-list { flex: 1; overflow-y: auto; padding: 6px 0; }
 
   .folder-item { display: flex; align-items: center; gap: 8px; padding: 11px 14px; cursor: pointer; font-size: 15px; border-left: 2px solid transparent; color: var(--text2); user-select: none; }
@@ -504,15 +505,6 @@ function clearQueue() {
   saveQueue([]);
   if (currentView?.type === 'queue') showQueue();
 }
-function moveQueueItem(idx, direction) {
-  const q = getQueue();
-  const newIdx = idx + direction;
-  if (newIdx < 0 || newIdx >= q.length) return;
-  // Échange les deux éléments
-  [q[idx], q[newIdx]] = [q[newIdx], q[idx]];
-  saveQueue(q);
-  if (currentView?.type === 'queue') showQueue();
-}
 function getNextFromQueue() {
   const q = getQueue();
   if (!q.length) return null;
@@ -551,7 +543,9 @@ function toast(msg) {
 
 // ─── Glisser-déposer dans la file (souris + tactile via Pointer Events) ───
 let dragState = null;
-function setupQueueDrag(container) {
+// ─── Glisser-déposer générique pour réordonner une liste (souris + tactile) ───
+// keyAttr : attribut data-* identifiant chaque ligne ; onReorder reçoit les clés dans le nouvel ordre
+function setupDragReorder(container, keyAttr, onReorder) {
   container.querySelectorAll('.drag-handle').forEach(h => {
     h.addEventListener('pointerdown', e => {
       e.preventDefault();
@@ -575,22 +569,28 @@ function setupQueueDrag(container) {
     const finish = () => {
       if (!dragState) return;
       dragState.row.classList.remove('dragging');
-      // Reconstruit la file selon le nouvel ordre du DOM
-      const q = getQueue();
-      const byUrl = {};
-      q.forEach(item => { byUrl[item.url] = item; });
-      const newQ = [...dragState.container.querySelectorAll('.episode-item')]
-        .map(r => byUrl[r.dataset.epUrl]).filter(Boolean);
+      const keys = [...dragState.container.querySelectorAll('.episode-item')]
+        .map(r => r.dataset[keyAttr]).filter(Boolean);
       dragState = null;
-      if (newQ.length === q.length) {
-        saveQueue(newQ);
-        if (currentView?.type === 'queue') showQueue(); // re-numérote 1. 2. 3.
-      }
+      onReorder(keys);
     };
     h.addEventListener('pointerup', finish);
     h.addEventListener('pointercancel', finish);
     // Empêche le clic de lancer la lecture après un drag
     h.addEventListener('click', e => e.stopPropagation());
+  });
+}
+
+function setupQueueDrag(container) {
+  setupDragReorder(container, 'epUrl', keys => {
+    const q = getQueue();
+    const byUrl = {};
+    q.forEach(item => { byUrl[item.url] = item; });
+    const newQ = keys.map(k => byUrl[k]).filter(Boolean);
+    if (newQ.length === q.length) {
+      saveQueue(newQ);
+      if (currentView?.type === 'queue') showQueue(); // re-numérote 1. 2. 3.
+    }
   });
 }
 
@@ -622,8 +622,6 @@ function showQueue() {
     const thumbHtml = ep.image
       ? `<div class="ep-thumb"><img src="${escapeAttr(ep.image)}" loading="lazy" onerror="this.style.display='none';this.parentNode.textContent='${icon}'" style="width:100%;height:100%;object-fit:cover;"></div>`
       : `<div class="ep-thumb">${icon}</div>`;
-    const upBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();moveQueueItem(${idx},-1)" title="Monter" ${idx === 0 ? 'disabled style="opacity:0.3;"' : ''}>▲</button>`;
-    const downBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();moveQueueItem(${idx},1)" title="Descendre" ${idx === q.length - 1 ? 'disabled style="opacity:0.3;"' : ''}>▼</button>`;
     div.innerHTML = `
       <span class="drag-handle" title="Glisser pour réordonner">⠿</span>
       ${thumbHtml}
@@ -635,7 +633,6 @@ function showQueue() {
         </div>
       </div>
       <div class="ep-actions-right">
-        ${upBtn}${downBtn}
         <button class="ep-icon-btn" onclick="event.stopPropagation();removeFromQueue('${escapeJsAttr(ep.url)}')" title="Retirer de la file">✕</button>
       </div>`;
     div.dataset.epUrl = ep.url || '';
@@ -782,12 +779,15 @@ function selectFolder(id) {
   const btnUnread = document.getElementById('btn-unread');
   btnUnread.style.display = 'inline-block';
   btnUnread.classList.toggle('active', unreadOnly);
+  btnUnread.textContent = unreadOnly ? '✓ Non lus' : 'Non lus';
   loadFolder(folder);
 }
 
 function toggleUnreadFilter() {
   unreadOnly = !unreadOnly;
-  document.getElementById('btn-unread').classList.toggle('active', unreadOnly);
+  const btn = document.getElementById('btn-unread');
+  btn.classList.toggle('active', unreadOnly);
+  btn.textContent = unreadOnly ? '✓ Non lus' : 'Non lus';
   // Re-rend la liste courante avec le nouveau filtre
   renderEpisodes(currentEpisodes);
 }
@@ -1178,19 +1178,6 @@ function getRadioFavoritesSorted() {
   const favs = getRadioFavorites();
   return Object.values(favs).sort((a, b) => (a._order ?? 0) - (b._order ?? 0));
 }
-// Déplace un favori dans l'ordre (direction -1 = monter, +1 = descendre)
-function moveRadioFavorite(uuid, direction) {
-  const sorted = getRadioFavoritesSorted();
-  const idx = sorted.findIndex(f => f.stationuuid === uuid);
-  const newIdx = idx + direction;
-  if (idx === -1 || newIdx < 0 || newIdx >= sorted.length) return;
-  [sorted[idx], sorted[newIdx]] = [sorted[newIdx], sorted[idx]];
-  // Réassigne les ordres séquentiellement
-  const favs = getRadioFavorites();
-  sorted.forEach((f, i) => { if (favs[f.stationuuid]) favs[f.stationuuid]._order = i; });
-  localStorage.setItem(RADIO_FAVORITES_KEY, JSON.stringify(favs));
-  if (currentView?.type === 'radio' && radioView === 'favorites') renderRadioFavorites();
-}
 
 async function loadRadioCountries() {
   if (radioCountries) return radioCountries;
@@ -1277,10 +1264,9 @@ function renderRadioFavorites() {
     const imgHtml = ep.image
       ? `<img src="${escapeAttr(ep.image)}" loading="lazy" onerror="this.style.display='none';this.parentNode.textContent='📻'" style="width:100%;height:100%;object-fit:cover;">`
       : '📻';
-    const upBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();moveRadioFavorite('${escapeJsAttr(ep.stationuuid)}',-1)" title="Monter" ${idx === 0 ? 'disabled style="opacity:0.3;"' : ''}>▲</button>`;
-    const downBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();moveRadioFavorite('${escapeJsAttr(ep.stationuuid)}',1)" title="Descendre" ${idx === eps.length - 1 ? 'disabled style="opacity:0.3;"' : ''}>▼</button>`;
     const removeBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();toggleRadioFavBtn('${escapeJsAttr(ep.stationuuid)}', this)" title="Retirer des favoris" style="color:#fbbf24;border-color:#fbbf24;">★</button>`;
     div.innerHTML = `
+      <span class="drag-handle" title="Glisser pour réordonner">⠿</span>
       <div class="ep-thumb">${imgHtml}</div>
       <div class="ep-info">
         <div class="ep-title">${escapeHTML(ep.title)}</div>
@@ -1289,10 +1275,18 @@ function renderRadioFavorites() {
           <span>${escapeHTML(ep.description)}</span>
         </div>
       </div>
-      <div class="ep-actions-right">${upBtn}${downBtn}${removeBtn}</div>`;
+      <div class="ep-actions-right">${removeBtn}</div>`;
+    div.dataset.uuid = ep.stationuuid || '';
     div._station = ep._raw;
     div.onclick = () => playEpisode(ep, div);
     content.appendChild(div);
+  });
+  // Réordonnancement des favoris par glisser-déposer
+  setupDragReorder(content, 'uuid', keys => {
+    const favs = getRadioFavorites();
+    keys.forEach((u, i) => { if (favs[u]) favs[u]._order = i; });
+    try { localStorage.setItem(RADIO_FAVORITES_KEY, JSON.stringify(favs)); } catch(e) {}
+    if (currentView?.type === 'radio' && radioView === 'favorites') renderRadioFavorites();
   });
 
   const badge = document.getElementById('content-badge');
@@ -1738,7 +1732,7 @@ function renderEpisodes(eps) {
       : `<div class="ep-thumb">${icon}</div>`;
     const infoBtn = ep.description ? `<button class="ep-icon-btn" onclick="event.stopPropagation();showEpisodeInfo(${idx})" title="Description">ⓘ</button>` : '';
     const queueBtn = !ep.isRadio ? `<button class="ep-icon-btn" onclick='event.stopPropagation();addToQueue(renderedEpisodes[${idx}])' title="Ajouter à la file">➕</button>` : '';
-    const readBtn = !ep.isRadio ? `<button class="ep-icon-btn" onclick="event.stopPropagation();toggleRead('${escapeJsAttr(ep.url)}')" title="${finished ? 'Marquer non lu' : 'Marquer comme lu'}">${finished ? '↺' : '✓'}</button>` : '';
+    const readBtn = !ep.isRadio ? `<button class="ep-icon-btn" onclick="event.stopPropagation();toggleRead('${escapeJsAttr(ep.url)}')" title="${finished ? 'Marquer non lu' : 'Marquer comme lu'}" ${finished ? 'style="color:var(--green);border-color:var(--green);"' : ''}>${finished ? '↺' : '✓'}</button>` : '';
     const removeBtn = isRecentsView ? `<button class="ep-icon-btn" onclick="event.stopPropagation();removeFromHistory('${escapeJsAttr(ep.url)}')" title="Retirer">✕</button>` : '';
     div.innerHTML = `
       ${thumbHtml}
