@@ -85,6 +85,9 @@
   .ep-actions-right { display: flex; flex-direction: column; gap: 4px; align-self: center; }
   .ep-icon-btn { background: var(--bg4); border: 1px solid var(--border); color: var(--text2); cursor: pointer; width: 30px; height: 30px; border-radius: 4px; font-size: 13px; display: flex; align-items: center; justify-content: center; padding: 0; }
   .ep-icon-btn:hover { background: var(--accent2); color: white; border-color: var(--accent); }
+  .drag-handle { cursor: grab; color: var(--text3); font-size: 18px; padding: 6px 4px; align-self: center; touch-action: none; user-select: none; -webkit-user-select: none; flex-shrink: 0; }
+  .drag-handle:active { cursor: grabbing; color: var(--accent); }
+  .episode-item.dragging { opacity: 0.5; background: var(--bg3); border-color: var(--accent2); }
 
   /* Bandeau de pré-chargement audio-livres */
   .preload-banner { display: none; align-items: center; gap: 8px; padding: 6px 12px; background: rgba(139,92,246,0.15); border-bottom: 1px solid rgba(139,92,246,0.3); font-size: 12px; color: var(--purple); }
@@ -267,6 +270,10 @@ const POSITION_KEY = 'mediastream_positions_v2';
 const HISTORY_KEY = 'mediastream_history_v2';
 const QUEUE_KEY = 'mediastream_queue_v1';
 const DELETED_FEEDS_KEY = 'mediastream_deleted_feeds_v1'; // URLs des podcasts par défaut supprimés volontairement
+const SPEED_KEY = 'mediastream_speed_v1';               // vitesse de lecture mémorisée
+const LAST_PLAYED_KEY = 'mediastream_last_played_v1';   // dernier média écouté (carte "Reprendre")
+const READ_OVERRIDE_KEY = 'mediastream_read_override_v1'; // statuts lu/non-lu forcés manuellement
+const FEED_CACHE_KEY = 'mediastream_feed_cache_v1';     // cache local des flux RSS (secours soir + rapidité)
 
 const DEFAULT_FOLDERS = [
   {
@@ -400,6 +407,9 @@ function loadData() {
 function saveData() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ folders, driveFolders }));
+    // Les flux ont pu changer : on invalide le cache de la recherche globale
+    globalSearchCache = null;
+    globalSearchCacheTime = 0;
   } catch(e) {
     // Échec probable : stockage plein. On avertit l'utilisateur (sinon perte silencieuse de données)
     console.error('Échec sauvegarde:', e);
@@ -518,6 +528,51 @@ function toast(msg) {
   toastTimer = setTimeout(() => { el.style.opacity = '0'; }, 2000);
 }
 
+// ─── Glisser-déposer dans la file (souris + tactile via Pointer Events) ───
+let dragState = null;
+function setupQueueDrag(container) {
+  container.querySelectorAll('.drag-handle').forEach(h => {
+    h.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      const row = h.closest('.episode-item');
+      if (!row) return;
+      dragState = { row, container };
+      row.classList.add('dragging');
+      try { h.setPointerCapture(e.pointerId); } catch(err) {}
+    });
+    h.addEventListener('pointermove', e => {
+      if (!dragState) return;
+      e.preventDefault();
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const over = el?.closest('.episode-item');
+      if (!over || over === dragState.row || over.parentElement !== dragState.container) return;
+      const rect = over.getBoundingClientRect();
+      const before = e.clientY < rect.top + rect.height / 2;
+      dragState.container.insertBefore(dragState.row, before ? over : over.nextSibling);
+    });
+    const finish = () => {
+      if (!dragState) return;
+      dragState.row.classList.remove('dragging');
+      // Reconstruit la file selon le nouvel ordre du DOM
+      const q = getQueue();
+      const byUrl = {};
+      q.forEach(item => { byUrl[item.url] = item; });
+      const newQ = [...dragState.container.querySelectorAll('.episode-item')]
+        .map(r => byUrl[r.dataset.epUrl]).filter(Boolean);
+      dragState = null;
+      if (newQ.length === q.length) {
+        saveQueue(newQ);
+        if (currentView?.type === 'queue') showQueue(); // re-numérote 1. 2. 3.
+      }
+    };
+    h.addEventListener('pointerup', finish);
+    h.addEventListener('pointercancel', finish);
+    // Empêche le clic de lancer la lecture après un drag
+    h.addEventListener('click', e => e.stopPropagation());
+  });
+}
+
 function showQueue() {
   currentView = { type: 'queue' };
   closeSidebar();
@@ -549,6 +604,7 @@ function showQueue() {
     const upBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();moveQueueItem(${idx},-1)" title="Monter" ${idx === 0 ? 'disabled style="opacity:0.3;"' : ''}>▲</button>`;
     const downBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();moveQueueItem(${idx},1)" title="Descendre" ${idx === q.length - 1 ? 'disabled style="opacity:0.3;"' : ''}>▼</button>`;
     div.innerHTML = `
+      <span class="drag-handle" title="Glisser pour réordonner">⠿</span>
       ${thumbHtml}
       <div class="ep-info">
         <div class="ep-title">${idx + 1}. ${escapeHTML(ep.title)}</div>
@@ -559,11 +615,13 @@ function showQueue() {
       </div>
       <div class="ep-actions-right">
         ${upBtn}${downBtn}
-        <button class="ep-icon-btn" onclick="event.stopPropagation();removeFromQueue('${escapeAttr(ep.url)}')" title="Retirer de la file">✕</button>
+        <button class="ep-icon-btn" onclick="event.stopPropagation();removeFromQueue('${escapeJsAttr(ep.url)}')" title="Retirer de la file">✕</button>
       </div>`;
+    div.dataset.epUrl = ep.url || '';
     div.onclick = () => playFromQueue(idx);
     container.appendChild(div);
   });
+  setupQueueDrag(container);
 
   const badge = document.getElementById('content-badge');
   badge.textContent = q.length + ' en attente';
@@ -747,10 +805,42 @@ function showRecents() {
   const history = getHistory().slice(0, 30);
   currentEpisodes = history;
   renderEpisodes(history);
+  renderContinueCard();
   const badge = document.getElementById('content-badge');
   badge.textContent = history.length + ' épisodes';
   badge.className = 'badge badge-purple';
   badge.style.display = 'inline';
+}
+
+// Carte "Reprendre l'écoute" : dernier média lu, avec sa position de reprise
+function renderContinueCard() {
+  let last = null;
+  try { last = JSON.parse(localStorage.getItem(LAST_PLAYED_KEY) || 'null'); } catch(e) {}
+  if (!last || !last.url) return;
+  if (activeEpisode && activeEpisode.url === last.url) return; // déjà en cours de lecture
+  const list = document.getElementById('episodes-list');
+  const pos = getPosition(last.url);
+  const card = document.createElement('div');
+  card.className = 'episode-item';
+  card.style.cssText = 'border:1px solid var(--accent2);background:var(--bg3);margin-bottom:10px;';
+  const icon = last.type === 'video' ? '🎬' : (last.isDrive ? '☁' : '🎙');
+  const thumbHtml = last.image
+    ? `<div class="ep-thumb"><img src="${escapeAttr(last.image)}" loading="lazy" onerror="this.style.display='none';this.parentNode.textContent='${icon}'" style="width:100%;height:100%;object-fit:cover;"></div>`
+    : `<div class="ep-thumb">${icon}</div>`;
+  card.innerHTML = `
+    ${thumbHtml}
+    <div class="ep-info">
+      <div class="ep-meta" style="margin:0 0 3px;"><span class="ep-resume" style="background:rgba(88,166,255,0.15);color:var(--accent);">▶ Reprendre l'écoute</span></div>
+      <div class="ep-title">${escapeHTML(last.title)}</div>
+      <div class="ep-meta">
+        <span class="ep-source">${escapeHTML(last.feed || '')}</span>
+        ${pos > 5 ? `<span class="ep-resume">⏱ ${formatTime(pos)}</span>` : ''}
+      </div>
+    </div>`;
+  card.onclick = () => playEpisode(last, null);
+  // S'il n'y a aucun historique, on remplace le message "Aucun épisode"
+  if (!getHistory().length) list.innerHTML = '';
+  list.prepend(card);
 }
 
 // ═══════════════════════════════════════════
@@ -867,8 +957,8 @@ async function runVerification() {
     const row = document.createElement('div');
     row.className = 'episode-item';
     // Bouton réparer (cherche un nouveau flux RSS) + bouton supprimer
-    const repairBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();repairFeed('${escapeAttr(feed.folderId)}','${escapeAttr(feed.url)}','${escapeAttr(feed.name)}',this)" title="Chercher un flux de remplacement" style="color:var(--accent);border-color:rgba(88,166,255,0.4);">🔧</button>`;
-    const delBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();deleteFeedFromVerify('${escapeAttr(feed.folderId)}','${escapeAttr(feed.url)}','${escapeAttr(feed.name)}',this)" title="Supprimer ce podcast" style="color:var(--red);border-color:rgba(248,81,73,0.4);">🗑</button>`;
+    const repairBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();repairFeed('${escapeJsAttr(feed.folderId)}','${escapeJsAttr(feed.url)}','${escapeJsAttr(feed.name)}',this)" title="Chercher un flux de remplacement" style="color:var(--accent);border-color:rgba(88,166,255,0.4);">🔧</button>`;
+    const delBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();deleteFeedFromVerify('${escapeJsAttr(feed.folderId)}','${escapeJsAttr(feed.url)}','${escapeJsAttr(feed.name)}',this)" title="Supprimer ce podcast" style="color:var(--red);border-color:rgba(248,81,73,0.4);">🗑</button>`;
     row.innerHTML = `
       <div class="ep-thumb" style="font-size:18px;">${icon}</div>
       <div class="ep-info">
@@ -1005,7 +1095,7 @@ async function showGlobalSearch() {
     list.innerHTML = `<div class="loading-text">Chargement de tous les flux<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>`;
     let allEps = [];
     for (const folder of folders) {
-      const results = await Promise.allSettled(folder.feeds.map(f => loadFeed(f)));
+      const results = await mapLimit(folder.feeds, 3, f => loadFeed(f));
       results.forEach(r => {
         if (r.status === 'fulfilled') allEps = allEps.concat(r.value.map(e => ({...e, folderName: folder.name})));
       });
@@ -1154,9 +1244,9 @@ function renderRadioFavorites() {
     const imgHtml = ep.image
       ? `<img src="${escapeAttr(ep.image)}" loading="lazy" onerror="this.style.display='none';this.parentNode.textContent='📻'" style="width:100%;height:100%;object-fit:cover;">`
       : '📻';
-    const upBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();moveRadioFavorite('${escapeAttr(ep.stationuuid)}',-1)" title="Monter" ${idx === 0 ? 'disabled style="opacity:0.3;"' : ''}>▲</button>`;
-    const downBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();moveRadioFavorite('${escapeAttr(ep.stationuuid)}',1)" title="Descendre" ${idx === eps.length - 1 ? 'disabled style="opacity:0.3;"' : ''}>▼</button>`;
-    const removeBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();toggleRadioFavBtn('${escapeAttr(ep.stationuuid)}', this)" title="Retirer des favoris" style="color:#fbbf24;border-color:#fbbf24;">★</button>`;
+    const upBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();moveRadioFavorite('${escapeJsAttr(ep.stationuuid)}',-1)" title="Monter" ${idx === 0 ? 'disabled style="opacity:0.3;"' : ''}>▲</button>`;
+    const downBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();moveRadioFavorite('${escapeJsAttr(ep.stationuuid)}',1)" title="Descendre" ${idx === eps.length - 1 ? 'disabled style="opacity:0.3;"' : ''}>▼</button>`;
+    const removeBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();toggleRadioFavBtn('${escapeJsAttr(ep.stationuuid)}', this)" title="Retirer des favoris" style="color:#fbbf24;border-color:#fbbf24;">★</button>`;
     div.innerHTML = `
       <div class="ep-thumb">${imgHtml}</div>
       <div class="ep-info">
@@ -1260,7 +1350,7 @@ async function searchRadios() {
         ? `<img src="${escapeAttr(ep.image)}" loading="lazy" onerror="this.style.display='none';this.parentNode.textContent='📻'" style="width:100%;height:100%;object-fit:cover;">`
         : '📻';
       const isFav = isRadioFavorite(ep.stationuuid);
-      const starBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();toggleRadioFavBtn('${escapeAttr(ep.stationuuid)}', this)" title="${isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}" style="${isFav ? 'color:#fbbf24;border-color:#fbbf24;' : ''}">${isFav ? '★' : '☆'}</button>`;
+      const starBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();toggleRadioFavBtn('${escapeJsAttr(ep.stationuuid)}', this)" title="${isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}" style="${isFav ? 'color:#fbbf24;border-color:#fbbf24;' : ''}">${isFav ? '★' : '☆'}</button>`;
       div.innerHTML = `
         <div class="ep-thumb">${imgHtml}</div>
         <div class="ep-info">
@@ -1372,6 +1462,46 @@ function showAudiobooks() {
 // ═══════════════════════════════════════════
 // CHARGEMENT FLUX
 // ═══════════════════════════════════════════
+// Limite le nombre de requêtes simultanées vers le proxy (le chargement en parallèle
+// de tous les flux contribuait au blocage de l'IP partagée Cloudflare le soir).
+async function mapLimit(items, limit, fn) {
+  const results = new Array(items.length);
+  let i = 0;
+  async function worker() {
+    while (i < items.length) {
+      const idx = i++;
+      try { results[idx] = { status: 'fulfilled', value: await fn(items[idx]) }; }
+      catch(e) { results[idx] = { status: 'rejected', reason: e }; }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) || 1 }, worker));
+  return results;
+}
+
+// ─── Cache local des flux RSS ───
+// 1) Frais (< 10 min) : on évite une requête au proxy (navigation plus rapide, moins de trafic).
+// 2) Périmé mais présent : sert de SECOURS si le proxy est bloqué (problème du soir) :
+//    on affiche les derniers épisodes connus au lieu d'un écran vide.
+const FEED_CACHE_TTL = 10 * 60 * 1000;
+function getFeedCache() {
+  try { return JSON.parse(localStorage.getItem(FEED_CACHE_KEY) || '{}'); } catch(e) { return {}; }
+}
+function setFeedCache(url, episodes) {
+  try {
+    const c = getFeedCache();
+    c[url] = { time: Date.now(), episodes };
+    let entries = Object.entries(c);
+    if (entries.length > 40) { // garde les 40 flux les plus récents
+      entries.sort((a,b) => b[1].time - a[1].time);
+      entries = entries.slice(0, 40);
+    }
+    localStorage.setItem(FEED_CACHE_KEY, JSON.stringify(Object.fromEntries(entries)));
+  } catch(e) {
+    // Stockage plein : le cache des flux n'est pas critique, on le vide
+    try { localStorage.removeItem(FEED_CACHE_KEY); } catch(e2) {}
+  }
+}
+
 // Fetch avec timeout plus long et nouvelle tentative automatique (robustesse réseau, surtout le soir)
 async function fetchWithRetry(url, { timeout = 30000, retries = 1 } = {}) {
   let lastErr;
@@ -1392,6 +1522,23 @@ async function fetchWithRetry(url, { timeout = 30000, retries = 1 } = {}) {
 }
 
 async function loadFeed(feed) {
+  const cached = getFeedCache()[feed.url];
+  // Cache frais : pas de requête au proxy
+  if (cached && Date.now() - cached.time < FEED_CACHE_TTL) {
+    return cached.episodes.map(e => ({ ...e, feed: feed.name }));
+  }
+  try {
+    const eps = await fetchFeedFromNetwork(feed);
+    setFeedCache(feed.url, eps);
+    return eps;
+  } catch(e) {
+    // Proxy/réseau injoignable (problème du soir) : on sert la dernière version connue
+    if (cached) return cached.episodes.map(ep => ({ ...ep, feed: feed.name, fromCache: true }));
+    throw e;
+  }
+}
+
+async function fetchFeedFromNetwork(feed) {
   const res = await fetchWithRetry(PROXY + encodeURIComponent(feed.url), { timeout: 30000, retries: 1 });
   const text = await res.text();
   const parser = new DOMParser();
@@ -1448,7 +1595,8 @@ async function loadFolder(folder) {
     return;
   }
 
-  const results = await Promise.allSettled(folder.feeds.map(f => loadFeed(f)));
+  // 3 flux à la fois maximum (ménage le proxy et les serveurs distants)
+  const results = await mapLimit(folder.feeds, 3, f => loadFeed(f));
   let allEps = [];
   const failed = [];
   results.forEach((r, i) => {
@@ -1477,14 +1625,34 @@ async function loadFolder(folder) {
   currentEpisodes = allEps;
   renderEpisodes(allEps);
 
+  const stale = allEps.some(e => e.fromCache);
+  if (stale) toast('⚠️ Proxy injoignable — affichage des derniers épisodes connus');
+
   const badge = document.getElementById('content-badge');
-  badge.textContent = allEps.length + ' épisodes' + (failed.length ? ` · ${failed.length} ⨯` : '');
+  badge.textContent = allEps.length + ' épisodes' + (failed.length ? ` · ${failed.length} ⨯` : '') + (stale ? ' · 📦 cache' : '');
   badge.style.display = 'inline';
-  badge.className = failed.length ? 'badge badge-blue' : 'badge badge-blue';
+  badge.className = stale ? 'badge badge-red' : 'badge badge-blue';
   if (failed.length) console.warn('Échec:', failed);
 }
 
+function getReadOverrides() {
+  try { return JSON.parse(localStorage.getItem(READ_OVERRIDE_KEY) || '{}'); } catch(e) { return {}; }
+}
+function toggleRead(url) {
+  if (!url) return;
+  try {
+    const o = getReadOverrides();
+    const ep = renderedEpisodes.find(e => e.url === url) || { url };
+    o[url] = !isFinished(ep); // on force l'état inverse de l'état effectif courant
+    localStorage.setItem(READ_OVERRIDE_KEY, JSON.stringify(o));
+  } catch(e) {}
+  renderEpisodes(renderedEpisodes);
+}
+
 function isFinished(ep) {
+  // Statut forcé manuellement : prioritaire
+  const o = getReadOverrides();
+  if (ep.url && ep.url in o) return !!o[ep.url];
   const pos = getPosition(ep.url);
   if (!pos) return false;
   // Pour les positions sauvegardées : si on a dépassé 95% d'une durée connue (depuis position vs durée RSS approx)
@@ -1503,7 +1671,10 @@ function parseDurationToSeconds(d) {
   return 0;
 }
 
+let renderedEpisodes = []; // liste réellement affichée (peut être filtrée) — les boutons ⓘ/➕ s'y réfèrent
+
 function renderEpisodes(eps) {
+  renderedEpisodes = eps;
   const list = document.getElementById('episodes-list');
   list.innerHTML = '';
   if (!eps.length) { list.innerHTML = '<div class="empty-text">Aucun épisode</div>'; return; }
@@ -1527,8 +1698,9 @@ function renderEpisodes(eps) {
       ? `<div class="ep-thumb"><img src="${escapeAttr(ep.image)}" loading="lazy" onerror="this.style.display='none';this.parentNode.textContent='${icon}'" style="width:100%;height:100%;object-fit:cover;"></div>`
       : `<div class="ep-thumb">${icon}</div>`;
     const infoBtn = ep.description ? `<button class="ep-icon-btn" onclick="event.stopPropagation();showEpisodeInfo(${idx})" title="Description">ⓘ</button>` : '';
-    const queueBtn = !ep.isRadio ? `<button class="ep-icon-btn" onclick='event.stopPropagation();addToQueue(currentEpisodes[${idx}])' title="Ajouter à la file">➕</button>` : '';
-    const removeBtn = isRecentsView ? `<button class="ep-icon-btn" onclick="event.stopPropagation();removeFromHistory('${escapeAttr(ep.url)}')" title="Retirer">✕</button>` : '';
+    const queueBtn = !ep.isRadio ? `<button class="ep-icon-btn" onclick='event.stopPropagation();addToQueue(renderedEpisodes[${idx}])' title="Ajouter à la file">➕</button>` : '';
+    const readBtn = !ep.isRadio ? `<button class="ep-icon-btn" onclick="event.stopPropagation();toggleRead('${escapeJsAttr(ep.url)}')" title="${finished ? 'Marquer non lu' : 'Marquer comme lu'}">${finished ? '↺' : '✓'}</button>` : '';
+    const removeBtn = isRecentsView ? `<button class="ep-icon-btn" onclick="event.stopPropagation();removeFromHistory('${escapeJsAttr(ep.url)}')" title="Retirer">✕</button>` : '';
     div.innerHTML = `
       ${thumbHtml}
       <div class="ep-info">
@@ -1541,7 +1713,8 @@ function renderEpisodes(eps) {
           ${finishedTxt}
         </div>
       </div>
-      <div class="ep-actions-right">${infoBtn}${queueBtn}${removeBtn}</div>`;
+      <div class="ep-actions-right">${infoBtn}${queueBtn}${readBtn}${removeBtn}</div>`;
+    div.dataset.epUrl = ep.url || '';
     div.onclick = () => playEpisode(ep, div);
     list.appendChild(div);
   });
@@ -1554,9 +1727,20 @@ function renderEpisodes(eps) {
 function escapeAttr(s) {
   return String(s||'').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
+// Échappement pour une chaîne JS placée DANS un attribut onclick (délimité par ").
+// escapeAttr ne suffit pas : &#39; est re-décodé en ' par le parseur HTML et casse/injecte du JS.
+function escapeJsAttr(s) {
+  return String(s||'')
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
 
 function showEpisodeInfo(idx) {
-  const ep = currentEpisodes[idx];
+  const ep = renderedEpisodes[idx];
   if (!ep) return;
   modalMode = 'episode-info';
   document.getElementById('modal-title').textContent = 'ⓘ ' + ep.title;
@@ -1568,7 +1752,7 @@ function showEpisodeInfo(idx) {
     </div>`;
   document.getElementById('modal-actions').innerHTML = `
     <button class="btn-cancel" onclick="closeModal()">Fermer</button>
-    <button class="btn-ok" onclick="closeModal();playEpisode(currentEpisodes[${idx}], null);">▶ Écouter</button>`;
+    <button class="btn-ok" onclick="closeModal();playEpisode(renderedEpisodes[${idx}], null);">▶ Écouter</button>`;
   document.getElementById('modal').style.display = 'flex';
 }
 
@@ -1581,8 +1765,8 @@ function removeFromHistory(url) {
 }
 
 function filterEpisodes() {
-  // La recherche du header ne s'applique pas aux vues qui ont leur propre moteur de recherche
-  if (currentView?.type === 'radio' || currentView?.type === 'audiobook') return;
+  // La recherche du header ne s'applique pas aux vues qui ont leur propre moteur ou un rendu spécifique
+  if (['radio','audiobook','queue','verify'].includes(currentView?.type)) return;
   const q = document.getElementById('search-input').value.toLowerCase().trim();
   if (!q) return renderEpisodes(currentEpisodes);
   renderEpisodes(currentEpisodes.filter(e =>
@@ -1593,6 +1777,8 @@ function filterEpisodes() {
 // ═══════════════════════════════════════════
 // GOOGLE DRIVE
 // ═══════════════════════════════════════════
+let driveNavStack = []; // pile de navigation dans les sous-dossiers Drive
+
 function selectDrive(idx) {
   currentView = { type: 'drive', idx };
   closeSidebar();
@@ -1600,7 +1786,22 @@ function selectDrive(idx) {
   renderSidebar();
   document.getElementById('content-title').textContent = '☁ ' + d.name;
   document.getElementById('btn-add-feed').style.display = 'none';
+  driveNavStack = [{ id: d.id, name: d.name }];
   loadDriveFolder(d.id, d.name);
+}
+
+function driveNavigate(id, name) {
+  driveNavStack.push({ id, name });
+  document.getElementById('content-title').textContent = '☁ ' + name;
+  loadDriveFolder(id, name);
+}
+
+function driveBack() {
+  if (driveNavStack.length <= 1) return;
+  driveNavStack.pop();
+  const top = driveNavStack[driveNavStack.length - 1];
+  document.getElementById('content-title').textContent = '☁ ' + top.name;
+  loadDriveFolder(top.id, top.name);
 }
 
 async function loadDriveFolder(folderId, folderName) {
@@ -1609,14 +1810,18 @@ async function loadDriveFolder(folderId, folderName) {
   currentEpisodes = [];
 
   try {
-    const url = `https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents+and+trashed=false&fields=files(id,name,mimeType,size)&orderBy=name&pageSize=1000&key=${DRIVE_API_KEY}`;
+    const url = `https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents+and+trashed=false&fields=files(id,name,mimeType,size)&orderBy=folder,name&pageSize=1000&key=${DRIVE_API_KEY}`;
     const res = await fetch(url);
     const data = await res.json();
     if (data.error) throw new Error(data.error.message);
 
-    const files = (data.files || []).filter(f => f.mimeType.includes('audio') || f.mimeType.includes('video'));
-    if (!files.length) {
+    const all = data.files || [];
+    const subfolders = all.filter(f => f.mimeType === 'application/vnd.google-apps.folder');
+    const files = all.filter(f => f.mimeType.includes('audio') || f.mimeType.includes('video'));
+
+    if (!files.length && !subfolders.length) {
       list.innerHTML = '<div class="empty-text">Aucun fichier audio/vidéo dans ce dossier.<br><small style="color:var(--text3);">Vérifie que le dossier est partagé "avec le lien".</small></div>';
+      if (driveNavStack.length > 1) prependDriveNav(list, subfolders);
       return;
     }
 
@@ -1633,13 +1838,44 @@ async function loadDriveFolder(folderId, folderName) {
     }));
     currentEpisodes = eps;
     renderEpisodes(eps);
+    if (!eps.length) list.innerHTML = ''; // retire le message "Aucun épisode" s'il n'y a que des sous-dossiers
+    prependDriveNav(list, subfolders);
 
     const badge = document.getElementById('content-badge');
-    badge.textContent = eps.length + ' fichiers';
+    badge.textContent = eps.length + ' fichiers' + (subfolders.length ? ` · ${subfolders.length} 📁` : '');
     badge.style.display = 'inline';
     badge.className = 'badge badge-blue';
   } catch(e) {
     list.innerHTML = `<div class="error-text" style="color:var(--red);padding:12px;">Erreur Drive : ${escapeHTML(e.message)}</div>`;
+  }
+}
+
+// Insère en tête de liste : bouton retour (si sous-dossier) puis les sous-dossiers
+function prependDriveNav(list, subfolders) {
+  [...subfolders].reverse().forEach(sf => {
+    const row = document.createElement('div');
+    row.className = 'episode-item';
+    row.innerHTML = `
+      <div class="ep-thumb" style="font-size:20px;">📁</div>
+      <div class="ep-info" style="align-self:center;">
+        <div class="ep-title">${escapeHTML(sf.name)}</div>
+      </div>
+      <div class="ep-actions-right" style="align-self:center;color:var(--text3);">›</div>`;
+    row.onclick = () => driveNavigate(sf.id, sf.name);
+    list.prepend(row);
+  });
+  if (driveNavStack.length > 1) {
+    const back = document.createElement('div');
+    back.className = 'episode-item';
+    back.style.cssText = 'border:1px solid var(--border);background:var(--bg2);';
+    const parent = driveNavStack[driveNavStack.length - 2];
+    back.innerHTML = `
+      <div class="ep-thumb" style="font-size:18px;">⬅</div>
+      <div class="ep-info" style="align-self:center;">
+        <div class="ep-title" style="color:var(--text2);">Retour à « ${escapeHTML(parent.name)} »</div>
+      </div>`;
+    back.onclick = () => driveBack();
+    list.prepend(back);
   }
 }
 
@@ -1649,6 +1885,9 @@ async function loadDriveFolder(folderId, folderName) {
 const audio = document.getElementById('audio-player');
 const video = document.getElementById('video-player');
 let activeMedia = audio; // alias vers le lecteur actuellement actif
+let pendingLoadHandler = null; // listener loadedmetadata en attente (anti-fantôme)
+let pendingLoadTarget = null;
+let currentSpeed = 1; // vitesse de lecture courante, réappliquée à chaque épisode
 
 function setPlayerArt(ep, isVideo) {
   const artEl = document.getElementById('player-art');
@@ -1691,6 +1930,18 @@ function playEpisode(ep, el, fromQueue = false) {
   activeEpisode = ep;
   playingFromQueue = fromQueue; // mémorise si la lecture vient de la file d'attente
 
+  // Mémorise le dernier média écouté (carte "Reprendre" au prochain lancement)
+  if (!ep.isRadio && ep.url) {
+    try {
+      localStorage.setItem(LAST_PLAYED_KEY, JSON.stringify({
+        title: ep.title, url: ep.url, feed: ep.feed, type: ep.type,
+        duration: ep.duration, image: ep.image, description: ep.description,
+        date: ep.date, isDrive: ep.isDrive, folderName: ep.folderName,
+        mimeType: ep.mimeType, driveId: ep.driveId,
+      }));
+    } catch(e) {}
+  }
+
   // Affiche le lecteur (masqué au démarrage tant que rien n'est lu)
   const playerEl = document.getElementById('player');
   playerEl.classList.remove('player-hidden');
@@ -1703,6 +1954,8 @@ function playEpisode(ep, el, fromQueue = false) {
   const isVideo = ep.type === 'video';
   if (isVideo) {
     audio.pause(); audio.style.display = 'none';
+    // Libère la source de l'élément inactif (évite double buffering)
+    if (audio.src) { audio.removeAttribute('src'); audio.load(); }
     video.style.display = 'block';
     // Mode audio-seul : on garde l'élément <video> actif mais on le rend invisible
     // (Chrome continue mieux la lecture en arrière-plan avec un élément <video> qu'avec <audio> chargé d'un .mp4)
@@ -1718,6 +1971,7 @@ function playEpisode(ep, el, fromQueue = false) {
     activeMedia = video;
   } else {
     video.pause(); video.style.display = 'none';
+    if (video.src) { video.removeAttribute('src'); video.load(); }
     audio.style.display = 'block';
     activeMedia = audio;
   }
@@ -1738,6 +1992,11 @@ function playEpisode(ep, el, fromQueue = false) {
   if (!ep.isRadio) addToHistory(ep);
 
   const onceLoaded = () => {
+    if (pendingLoadHandler === onceLoaded) { pendingLoadHandler = null; pendingLoadTarget = null; }
+    // Garde-fou : si un autre épisode a été lancé entre-temps, on ignore
+    if (activeEpisode !== ep) return;
+    // Réapplique la vitesse choisie (changer de src peut la remettre à 1 selon le navigateur)
+    activeMedia.playbackRate = currentSpeed;
     // Pas de reprise pour les radios (flux live)
     // Pas de reprise pour les fichiers Drive courts (< 10 min) : ce sont des chansons, on les réécoute depuis le début
     const isShortDriveFile = ep.isDrive && activeMedia.duration && activeMedia.duration < 600;
@@ -1749,6 +2008,13 @@ function playEpisode(ep, el, fromQueue = false) {
     }
     activeMedia.play().catch(e => console.warn('Lecture refusée:', e));
   };
+  // Retire un éventuel listener resté en attente (épisode précédent en échec de chargement) :
+  // sinon il se déclencherait sur CE média avec l'ancienne position sauvegardée.
+  if (pendingLoadHandler && pendingLoadTarget) {
+    pendingLoadTarget.removeEventListener('loadedmetadata', pendingLoadHandler);
+  }
+  pendingLoadHandler = onceLoaded;
+  pendingLoadTarget = activeMedia;
   activeMedia.addEventListener('loadedmetadata', onceLoaded, { once: true });
 
   if ('mediaSession' in navigator) {
@@ -1841,6 +2107,8 @@ function playEpisode(ep, el, fromQueue = false) {
 });
 
 function setSpeed(rate) {
+  currentSpeed = rate;
+  try { localStorage.setItem(SPEED_KEY, String(rate)); } catch(e) {}
   audio.playbackRate = rate;
   video.playbackRate = rate;
   document.querySelectorAll('.speed-btn').forEach(btn => {
@@ -1957,6 +2225,10 @@ setupSeekButtons();
 
 function findEpisodeElement(ep) {
   const items = document.querySelectorAll('.episode-item');
+  for (const el of items) {
+    if (ep.url && el.dataset.epUrl === ep.url) return el;
+  }
+  // Repli : correspondance par titre (anciennes vues sans dataset)
   for (const el of items) {
     if (el.querySelector('.ep-title')?.textContent === ep.title) return el;
   }
@@ -2281,7 +2553,7 @@ async function addDiscoveredPodcast(idx) {
     <input class="modal-input" id="discover-name" value="${escapeAttr(name)}" />`;
   document.getElementById('modal-actions').innerHTML = `
     <button class="btn-cancel" onclick="showDiscoverModal()">← Retour</button>
-    <button class="btn-ok" onclick="confirmAddDiscovered('${escapeAttr(feedUrl)}')">Ajouter</button>`;
+    <button class="btn-ok" onclick="confirmAddDiscovered('${escapeJsAttr(feedUrl)}')">Ajouter</button>`;
 }
 
 function confirmAddDiscovered(feedUrl) {
@@ -2312,11 +2584,17 @@ function showSettingsModal() {
     <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="exportData()">📥 Exporter (JSON)</button>
     <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="document.getElementById('import-file').click()">📤 Importer un JSON</button>
     <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importData(event)" />
+    <div class="modal-label">Abonnements podcasts (OPML)</div>
+    <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="exportOPML()">📡 Exporter en OPML</button>
+    <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="document.getElementById('import-opml').click()">📡 Importer un OPML</button>
+    <input type="file" id="import-opml" accept=".opml,.xml" style="display:none;" onchange="importOPML(event)" />
+    <div style="font-size:11px;color:var(--text3);margin:-2px 0 10px;line-height:1.5;">L'OPML est le format standard d'échange d'abonnements entre applications de podcasts (AntennaPod, Pocket Casts…).</div>
+    <div class="modal-label">Maintenance</div>
     <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="clearAppCache()">🧹 Vider le cache (sans perdre mes données)</button>
     <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="if(confirm('Vider l\\'historique ?')){localStorage.removeItem(HISTORY_KEY);location.reload();}">🗑 Vider l'historique</button>
     <button class="btn-danger" style="width:100%;" onclick="if(confirm('Tout réinitialiser ?')){localStorage.clear();location.reload();}">⚠ Tout réinitialiser</button>
     <div class="modal-label" style="margin-top:14px;">À propos</div>
-    <div style="font-size:11px;color:var(--text3);font-family:var(--font-mono);line-height:1.6;">MediaStream v2.1<br>Proxy : Cloudflare Workers<br>© Christophe Soulas, 2026</div>`;
+    <div style="font-size:11px;color:var(--text3);font-family:var(--font-mono);line-height:1.6;">MediaStream v2.2<br>Proxy : Cloudflare Workers<br>© Christophe Soulas, 2026</div>`;
   document.getElementById('modal-actions').innerHTML = `<button class="btn-cancel" onclick="closeModal()">Fermer</button>`;
   document.getElementById('modal').style.display = 'flex';
 }
@@ -2342,6 +2620,7 @@ async function clearAppCache() {
       'mediastream_audiobook_cache_v1',
       'mediastream_audiobook_preload_progress_v1',
       'mediastream_audiobook_preload_progress_v2',
+      FEED_CACHE_KEY,
     ];
     keysToClean.forEach(k => { try { localStorage.removeItem(k); } catch(e) {} });
     // On nettoie aussi toute clé de cache audio-livres versionnée
@@ -2352,7 +2631,7 @@ async function clearAppCache() {
       }
     }
     alert('Cache vidé. L\'application va se recharger.');
-    location.reload(true);
+    location.reload();
   } catch(e) {
     alert('Erreur lors du nettoyage : ' + e.message);
   }
@@ -2483,6 +2762,7 @@ async function exportData() {
     positions: getPositions(),
     radioFavorites: getRadioFavorites(),
     queue: getQueue(),
+    readOverrides: getReadOverrides(),
   };
   const json = JSON.stringify(data, null, 2);
   const filename = 'mediastream-' + new Date().toISOString().slice(0,10) + '.json';
@@ -2523,19 +2803,85 @@ function importData(e) {
     try {
       const data = JSON.parse(ev.target.result);
       if (Array.isArray(data)) { folders = data; } // ancien format
-      else {
-        if (data.folders) folders = data.folders;
-        if (data.driveFolders) driveFolders = data.driveFolders;
-        if (data.history) localStorage.setItem(HISTORY_KEY, JSON.stringify(data.history));
-        if (data.positions) localStorage.setItem(POSITION_KEY, JSON.stringify(data.positions));
-        if (data.radioFavorites) localStorage.setItem(RADIO_FAVORITES_KEY, JSON.stringify(data.radioFavorites));
-        if (data.queue) localStorage.setItem(QUEUE_KEY, JSON.stringify(data.queue));
+      else if (data && typeof data === 'object') {
+        if (Array.isArray(data.folders)) folders = data.folders;
+        if (Array.isArray(data.driveFolders)) driveFolders = data.driveFolders;
+        if (Array.isArray(data.history)) localStorage.setItem(HISTORY_KEY, JSON.stringify(data.history));
+        if (data.positions && typeof data.positions === 'object') localStorage.setItem(POSITION_KEY, JSON.stringify(data.positions));
+        if (data.radioFavorites && typeof data.radioFavorites === 'object') localStorage.setItem(RADIO_FAVORITES_KEY, JSON.stringify(data.radioFavorites));
+        if (Array.isArray(data.queue)) localStorage.setItem(QUEUE_KEY, JSON.stringify(data.queue));
+        if (data.readOverrides && typeof data.readOverrides === 'object') localStorage.setItem(READ_OVERRIDE_KEY, JSON.stringify(data.readOverrides));
+      } else {
+        throw new Error('Format de fichier non reconnu');
       }
       saveData(); closeModal(); renderSidebar();
       alert('Importation réussie.');
     } catch(err) { alert('Erreur : ' + err.message); }
   };
   reader.readAsText(file);
+}
+
+// ─── OPML : format standard d'échange d'abonnements entre apps de podcasts ───
+function exportOPML() {
+  const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  let body = '';
+  folders.forEach(f => {
+    if (!f.feeds.length) return;
+    body += `    <outline text="${esc(f.name)}" title="${esc(f.name)}">\n`;
+    f.feeds.forEach(fd => {
+      body += `      <outline type="rss" text="${esc(fd.name)}" title="${esc(fd.name)}" xmlUrl="${esc(fd.url)}"/>\n`;
+    });
+    body += `    </outline>\n`;
+  });
+  const opml = `<?xml version="1.0" encoding="UTF-8"?>\n<opml version="2.0">\n  <head>\n    <title>Abonnements MediaStream</title>\n    <dateCreated>${new Date().toUTCString()}</dateCreated>\n  </head>\n  <body>\n${body}  </body>\n</opml>`;
+  const blob = new Blob([opml], { type: 'text/x-opml' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'mediastream-' + new Date().toISOString().slice(0,10) + '.opml';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+  toast('📡 OPML exporté');
+}
+
+function importOPML(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const xml = new DOMParser().parseFromString(ev.target.result, 'application/xml');
+      if (xml.querySelector('parsererror')) throw new Error('Fichier OPML illisible');
+      let added = 0, skipped = 0;
+      xml.querySelectorAll('outline[xmlUrl]').forEach(node => {
+        const url = node.getAttribute('xmlUrl');
+        if (!url) return;
+        const name = node.getAttribute('title') || node.getAttribute('text') || url;
+        // Le dossier de destination = l'outline parent (catégorie), sinon "Importés"
+        let parentName = 'Importés';
+        const p = node.parentElement;
+        if (p && p.tagName.toLowerCase() === 'outline' && !p.getAttribute('xmlUrl')) {
+          parentName = p.getAttribute('title') || p.getAttribute('text') || parentName;
+        }
+        // Doublon (toutes catégories confondues) : ignoré
+        if (folders.some(f => f.feeds.some(fd => fd.url === url))) { skipped++; return; }
+        let folder = folders.find(f => f.name === parentName);
+        if (!folder) {
+          folder = { id: 'folder_' + Date.now() + '_' + folders.length, name: parentName, icon: '📂', feeds: [] };
+          folders.push(folder);
+        }
+        folder.feeds.push({ name, url });
+        unmarkFeedDeleted(url);
+        added++;
+      });
+      saveData(); renderSidebar(); closeModal();
+      alert(`Import OPML : ${added} podcast(s) ajouté(s)` + (skipped ? `, ${skipped} doublon(s) ignoré(s)` : '') + '.');
+    } catch(err) { alert('Erreur : ' + err.message); }
+  };
+  reader.readAsText(file);
+  e.target.value = ''; // permet de réimporter le même fichier
 }
 
 // ═══════════════════════════════════════════
@@ -2592,7 +2938,24 @@ function formatDuration(d) {
 try { localStorage.removeItem('mediastream_audiobook_preload_progress_v1'); } catch(e) {}
 try { localStorage.removeItem('mediastream_audiobook_preload_progress_v2'); } catch(e) {}
 
+// Sauvegarde immédiate de la position quand l'app passe en arrière-plan ou se ferme
+function flushPosition() {
+  if (!activeEpisode || activeEpisode.isRadio || !activeMedia) return;
+  const isShortDriveFile = activeEpisode.isDrive && activeMedia.duration && activeMedia.duration < 600;
+  if (isShortDriveFile) return;
+  if (activeMedia.currentTime > 5) savePosition(activeEpisode.url, activeMedia.currentTime);
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') flushPosition();
+});
+window.addEventListener('pagehide', flushPosition);
+
 loadData();
+// Restaure la vitesse de lecture mémorisée
+try {
+  const s = parseFloat(localStorage.getItem(SPEED_KEY));
+  if ([1, 1.25, 1.5, 2].includes(s)) setSpeed(s);
+} catch(e) {}
 showRecents();
 
 // PRÉ-CHARGEMENT AUTOMATIQUE DÉSACTIVÉ :
