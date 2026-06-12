@@ -279,41 +279,6 @@
 // CONFIGURATION
 // ═══════════════════════════════════════════
 const PROXY = 'https://media-proxy.chrissorbadere.workers.dev/?url=';
-// ─── Proxy de SECOURS hors infrastructure Cloudflare ───
-// Les opérateurs espagnols bloquent les IP Cloudflare pendant les matchs de foot
-// (blocages LaLiga, le soir) → le worker devient injoignable. Ce secours sur
-// Google Apps Script (infra Google, jamais bloquée) prend le relais pour les flux RSS.
-// À remplir après déploiement du script gas-proxy.gs (URL en /exec) :
-const PROXY_FALLBACK = https://script.google.com/macros/s/AKfycbwH_pABf3iYEMLLqcN782t59Bn-55hrJcBv3-AQAMFpsHIGjkYdmSEQz4Cb0dZLWA39/exec
-
-// Mémoire du proxy qui fonctionne (évite d'attendre le timeout Cloudflare à chaque flux le soir)
-let preferredProxy = 0;          // 0 = Cloudflare, 1 = secours
-let preferredProxyUntil = 0;     // on re-tente Cloudflare après ce délai
-function getProxyList() {
-  const list = [PROXY];
-  if (PROXY_FALLBACK) list.push(PROXY_FALLBACK);
-  if (preferredProxy === 1 && Date.now() < preferredProxyUntil && PROXY_FALLBACK) list.reverse();
-  return list;
-}
-// Récupère un contenu texte (RSS/XML) en essayant chaque proxy dans l'ordre
-async function proxyFetchText(targetUrl, { timeout = 30000 } = {}) {
-  const proxies = getProxyList();
-  let lastErr = null;
-  for (const p of proxies) {
-    try {
-      const res = await fetchWithRetry(p + encodeURIComponent(targetUrl), { timeout, retries: p === proxies[0] ? 1 : 0 });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const text = await res.text();
-      // Le proxy Apps Script répond toujours 200 : les erreurs distantes sont préfixées
-      if (text.startsWith('__PROXY_HTTP_ERROR__')) throw new Error('HTTP ' + text.slice(20, 23));
-      // Mémorise le proxy gagnant pendant 10 min si ce n'est pas le principal
-      if (p === PROXY_FALLBACK && PROXY_FALLBACK) { preferredProxy = 1; preferredProxyUntil = Date.now() + 600000; }
-      else if (p === PROXY) { preferredProxy = 0; }
-      return text;
-    } catch(e) { lastErr = e; }
-  }
-  throw lastErr || new Error('Proxys injoignables');
-}
 const DRIVE_API_KEY = 'AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow';
 const STORAGE_KEY = 'mediastream_data_v2';
 const POSITION_KEY = 'mediastream_positions_v2';
@@ -976,8 +941,11 @@ async function runVerification() {
 
     let status = 'ok', detail = '';
     try {
-      const text = await proxyFetchText(feed.url, { timeout: 15000 });
-      {
+      const res = await fetch(PROXY + encodeURIComponent(feed.url), { signal: AbortSignal.timeout(15000) });
+      if (!res.ok) {
+        status = 'error'; detail = `Erreur HTTP ${res.status}`;
+      } else {
+        const text = await res.text();
         const xml = new DOMParser().parseFromString(text, 'application/xml');
         if (xml.querySelector('parsererror')) {
           status = 'error'; detail = 'Flux illisible (XML invalide)';
@@ -1001,8 +969,7 @@ async function runVerification() {
       }
     } catch(e) {
       status = 'error';
-      detail = /^HTTP \d+/.test(e.message || '') ? `Erreur ${e.message}`
-        : (e.name === 'TimeoutError' ? 'Délai dépassé' : 'Inaccessible');
+      detail = e.name === 'TimeoutError' ? 'Délai dépassé' : 'Inaccessible';
     }
 
     if (status === 'ok') { okCount++; }
@@ -1599,7 +1566,8 @@ async function loadFeed(feed) {
 }
 
 async function fetchFeedFromNetwork(feed) {
-  const text = await proxyFetchText(feed.url, { timeout: 30000 });
+  const res = await fetchWithRetry(PROXY + encodeURIComponent(feed.url), { timeout: 30000, retries: 1 });
+  const text = await res.text();
   const parser = new DOMParser();
   const xml = parser.parseFromString(text, 'application/xml');
   if (xml.querySelector('parsererror')) throw new Error('XML invalide');
@@ -2112,13 +2080,8 @@ function playEpisode(ep, el, fromQueue = false) {
     activeMedia = audio;
   }
 
-  // Stream : Drive, radios et audio-livres en direct (CORS-ok).
-  // Podcasts : DIRECT d'abord — un élément <audio> n'a pas besoin de CORS pour lire,
-  // et le proxy Cloudflare est inaccessible le soir (blocages LaLiga des IP Cloudflare
-  // par les opérateurs espagnols). Si la lecture directe échoue (hotlinking bloqué par
-  // le serveur du podcast), le handler 'error' bascule automatiquement sur le proxy.
-  ep._viaProxy = false;
-  activeMedia.src = ep.url;
+  // Stream : Drive direct + Radios direct + Audio-livres direct (tous CORS-ok), tout le reste via proxy
+  activeMedia.src = (ep.isDrive || ep.isRadio) ? ep.url : (PROXY + encodeURIComponent(ep.url));
 
   document.getElementById('player-title').textContent = ep.title;
   document.getElementById('player-sub').textContent = ep.feed || '';
@@ -2242,21 +2205,6 @@ function playEpisode(ep, el, fromQueue = false) {
   });
   m.addEventListener('error', () => {
     if (m !== activeMedia || !activeEpisode) return;
-    const ep = activeEpisode;
-    // Podcast en lecture directe qui échoue (hotlinking refusé, redirection exotique…) :
-    // on re-tente une seule fois via le proxy, en conservant la position éventuelle.
-    if (!ep.isRadio && !ep.isDrive && !ep._viaProxy) {
-      ep._viaProxy = true;
-      const resumeAt = m.currentTime || 0;
-      console.warn('Lecture directe échouée, bascule sur le proxy:', ep.title);
-      m.src = PROXY + encodeURIComponent(ep.url);
-      m.addEventListener('loadedmetadata', () => {
-        if (activeEpisode === ep && resumeAt > 5 && m.duration && resumeAt < m.duration - 5) m.currentTime = resumeAt;
-        m.play().catch(() => {});
-      }, { once: true });
-      m.load();
-      return;
-    }
     const status = document.getElementById('player-status');
     status.className = 'player-status idle';
     status.textContent = '⚠ ERREUR';
