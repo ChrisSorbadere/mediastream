@@ -43,9 +43,8 @@
   .sidebar-header { padding: 12px 14px 8px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
   .sidebar-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text3); }
   .btn-add { background: none; border: 1px solid var(--border); border-radius: 4px; color: var(--text2); font-size: 13px; padding: 4px 10px; cursor: pointer; }
+  .btn-add.active { background: var(--accent2); color: white; border-color: var(--accent); }
   .btn-add:hover { background: var(--bg3); color: var(--text); border-color: var(--border2); }
-  /* .active déclaré APRÈS :hover : sinon le hover "collant" du tactile écrase la couleur d'état */
-  .btn-add.active, .btn-add.active:hover { background: var(--accent2); color: white; border-color: var(--accent); }
   .sidebar-list { flex: 1; overflow-y: auto; padding: 6px 0; }
 
   .folder-item { display: flex; align-items: center; gap: 8px; padding: 11px 14px; cursor: pointer; font-size: 15px; border-left: 2px solid transparent; color: var(--text2); user-select: none; }
@@ -86,20 +85,20 @@
   .ep-actions-right { display: flex; flex-direction: column; gap: 4px; align-self: center; }
   .ep-icon-btn { background: var(--bg4); border: 1px solid var(--border); color: var(--text2); cursor: pointer; width: 30px; height: 30px; border-radius: 4px; font-size: 13px; display: flex; align-items: center; justify-content: center; padding: 0; }
   .ep-icon-btn:hover { background: var(--accent2); color: white; border-color: var(--accent); }
-  .drag-handle { cursor: grab; color: var(--text3); font-size: 18px; padding: 6px 4px; align-self: center; touch-action: none; user-select: none; -webkit-user-select: none; flex-shrink: 0; }
-  .drag-handle:active { cursor: grabbing; color: var(--accent); }
-  .episode-item.dragging { opacity: 0.5; background: var(--bg3); border-color: var(--accent2); }
+
+  /* Bandeau de pré-chargement audio-livres */
+  .preload-banner { display: none; align-items: center; gap: 8px; padding: 6px 12px; background: rgba(139,92,246,0.15); border-bottom: 1px solid rgba(139,92,246,0.3); font-size: 12px; color: var(--purple); }
+  .preload-banner.visible { display: flex; }
+  .preload-banner .preload-spinner { width: 12px; height: 12px; border: 2px solid rgba(139,92,246,0.3); border-top-color: var(--purple); border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
 
   /* PLAYER */
   .player { background: #06090f; border-top: 1px solid var(--border); padding: 10px 16px 12px; flex-shrink: 0; padding-bottom: calc(12px + env(safe-area-inset-bottom)); box-shadow: 0 -4px 12px rgba(0,0,0,0.4); }
-  .player-progress { height: 5px; background: var(--bg4); border-radius: 3px; margin: -2px 0 8px; cursor: pointer; overflow: hidden; }
-  .player-progress-fill { height: 100%; width: 0%; background: var(--accent); border-radius: 3px; }
   .player.player-hidden { display: none; }
   .player.collapsed audio,
+  .player.collapsed video,
   .player.collapsed .control-bar { display: none !important; }
-  /* La vidéo n'est pas masquée par display:none (qui peut couper la lecture en
-     arrière-plan sur Chrome Android) mais rendue invisible, comme en mode audio seul */
-  .player.collapsed video { height: 0 !important; opacity: 0 !important; pointer-events: none !important; margin: 0 !important; }
   .player.collapsed .player-top { margin-bottom: 0; }
   .player-collapse-btn { background: var(--bg4); border: 1px solid var(--border); border-radius: 4px; color: var(--text2); font-size: 14px; padding: 4px 9px; cursor: pointer; flex-shrink: 0; }
   .player-collapse-btn:hover { background: var(--bg3); color: var(--text); }
@@ -120,6 +119,8 @@
   .control-btn.icon-only { padding: 6px 10px; }
   .control-spacer { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
 
+  .speed-bar { display: flex; align-items: center; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
+  .speed-label { font-size: 11px; color: var(--text3); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; margin-right: 4px; }
   .speed-btn { background: var(--bg4); border: 1px solid var(--border); border-radius: 4px; color: var(--text2); font-size: 11px; font-family: var(--font-mono); padding: 3px 7px; cursor: pointer; line-height: 1.5; }
   .speed-btn:hover { background: var(--bg3); color: var(--text); border-color: var(--border2); }
   .speed-btn.active { background: var(--accent2); color: white; border-color: var(--accent); }
@@ -164,9 +165,6 @@
   .icon-btn { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 13px; padding: 2px 5px; }
   .icon-btn:hover { color: var(--red); }
 
-  /* Barre de navigation basse (mobile uniquement) */
-  .bottom-nav { display: none; }
-
   @media (max-width: 720px) {
     .sidebar { position: fixed; left: 0; top: 0; bottom: 0; z-index: 50; transform: translateX(-100%); transition: transform 0.2s; box-shadow: 4px 0 20px rgba(0,0,0,0.5); }
     .sidebar.open { transform: translateX(0); }
@@ -177,13 +175,6 @@
     .settings-btn { padding: 6px 10px; font-size: 15px; }
     .overlay-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 40; }
     .overlay-bg.visible { display: block; }
-    /* La safe-area passe sur la barre de navigation, plus sur le lecteur */
-    .player { padding-bottom: 10px; }
-    .bottom-nav { display: flex; background: var(--bg2); border-top: 1px solid var(--border); flex-shrink: 0; padding-bottom: env(safe-area-inset-bottom); }
-    .bottom-nav button { flex: 1; background: none; border: none; color: var(--text3); font-size: 11px; padding: 7px 0 6px; display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; position: relative; font-family: var(--font); }
-    .bottom-nav button .bn-icon { font-size: 19px; line-height: 1.2; }
-    .bottom-nav button.active { color: var(--accent); }
-    .bn-count { position: absolute; top: 2px; right: calc(50% - 24px); background: var(--accent2); color: #fff; font-size: 9px; font-weight: 600; border-radius: 8px; padding: 1px 5px; }
   }
 
   ::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -227,16 +218,14 @@
 </div>
 
 <div class="player player-hidden" id="player">
-  <div class="player-progress" id="player-progress" title="Position de lecture"><div class="player-progress-fill" id="player-progress-fill"></div></div>
-  <div class="player-top" onclick="togglePlayerCollapse()" style="cursor:pointer;">
+  <div class="player-top">
     <div class="player-art" id="player-art">🎙</div>
     <div class="player-info">
       <div class="player-title" id="player-title">Aucun média en cours</div>
       <div class="player-sub" id="player-sub">—</div>
     </div>
     <div class="player-status idle" id="player-status">IDLE</div>
-    <button class="player-collapse-btn" id="btn-mini-play" onclick="toggleMiniPlay(event)" title="Lecture / Pause">▶</button>
-    <button class="player-collapse-btn" id="player-collapse" onclick="event.stopPropagation();togglePlayerCollapse()" title="Réduire le lecteur">▾</button>
+    <button class="player-collapse-btn" id="player-collapse" onclick="togglePlayerCollapse()" title="Réduire le lecteur">▾</button>
   </div>
   <audio id="audio-player" controls preload="metadata"></audio>
   <video id="video-player" controls preload="metadata" playsinline webkit-playsinline style="display:none;width:100%;max-height:240px;border-radius:6px;background:#000;margin-top:4px;"></video>
@@ -258,13 +247,6 @@
   </div>
 </div>
 
-<nav class="bottom-nav" id="bottom-nav">
-  <button onclick="showRecents()" data-nav="recents"><span class="bn-icon">🕒</span>Récents</button>
-  <button onclick="toggleSidebar()" data-nav="dossiers"><span class="bn-icon">📂</span>Dossiers</button>
-  <button onclick="showRadios()" data-nav="radio"><span class="bn-icon">📻</span>Radios</button>
-  <button onclick="showQueue()" data-nav="queue"><span class="bn-icon">▶</span>File<span class="bn-count" id="bn-queue-count" style="display:none;"></span></button>
-</nav>
-
 <div class="modal-overlay" id="modal" style="display:none;" onclick="closeModalOutside(event)">
   <div class="modal">
     <div class="modal-title" id="modal-title">Ajouter</div>
@@ -279,51 +261,12 @@
 // CONFIGURATION
 // ═══════════════════════════════════════════
 const PROXY = 'https://media-proxy.chrissorbadere.workers.dev/?url=';
-// ─── Proxy de SECOURS hors infrastructure Cloudflare ───
-// Les opérateurs espagnols bloquent les IP Cloudflare pendant les matchs de foot
-// (blocages LaLiga, le soir) → le worker devient injoignable. Ce secours sur
-// Google Apps Script (infra Google, jamais bloquée) prend le relais pour les flux RSS.
-// À remplir après déploiement du script gas-proxy.gs (URL en /exec) :
-const PROXY_FALLBACK = ''; // ex. 'https://script.google.com/macros/s/XXXX/exec?url='
-
-// Mémoire du proxy qui fonctionne (évite d'attendre le timeout Cloudflare à chaque flux le soir)
-let preferredProxy = 0;          // 0 = Cloudflare, 1 = secours
-let preferredProxyUntil = 0;     // on re-tente Cloudflare après ce délai
-function getProxyList() {
-  const list = [PROXY];
-  if (PROXY_FALLBACK) list.push(PROXY_FALLBACK);
-  if (preferredProxy === 1 && Date.now() < preferredProxyUntil && PROXY_FALLBACK) list.reverse();
-  return list;
-}
-// Récupère un contenu texte (RSS/XML) en essayant chaque proxy dans l'ordre
-async function proxyFetchText(targetUrl, { timeout = 30000 } = {}) {
-  const proxies = getProxyList();
-  let lastErr = null;
-  for (const p of proxies) {
-    try {
-      const res = await fetchWithRetry(p + encodeURIComponent(targetUrl), { timeout, retries: p === proxies[0] ? 1 : 0 });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const text = await res.text();
-      // Le proxy Apps Script répond toujours 200 : les erreurs distantes sont préfixées
-      if (text.startsWith('__PROXY_HTTP_ERROR__')) throw new Error('HTTP ' + text.slice(20, 23));
-      // Mémorise le proxy gagnant pendant 10 min si ce n'est pas le principal
-      if (p === PROXY_FALLBACK && PROXY_FALLBACK) { preferredProxy = 1; preferredProxyUntil = Date.now() + 600000; }
-      else if (p === PROXY) { preferredProxy = 0; }
-      return text;
-    } catch(e) { lastErr = e; }
-  }
-  throw lastErr || new Error('Proxys injoignables');
-}
 const DRIVE_API_KEY = 'AIzaSyA6_HNdd9V9bjMjs2-8kSBri7UsFNi9dow';
 const STORAGE_KEY = 'mediastream_data_v2';
 const POSITION_KEY = 'mediastream_positions_v2';
 const HISTORY_KEY = 'mediastream_history_v2';
 const QUEUE_KEY = 'mediastream_queue_v1';
 const DELETED_FEEDS_KEY = 'mediastream_deleted_feeds_v1'; // URLs des podcasts par défaut supprimés volontairement
-const SPEED_KEY = 'mediastream_speed_v1';               // vitesse de lecture mémorisée
-const LAST_PLAYED_KEY = 'mediastream_last_played_v1';   // dernier média écouté (carte "Reprendre")
-const READ_OVERRIDE_KEY = 'mediastream_read_override_v1'; // statuts lu/non-lu forcés manuellement
-const FEED_CACHE_KEY = 'mediastream_feed_cache_v1';     // cache local des flux RSS (secours soir + rapidité)
 
 const DEFAULT_FOLDERS = [
   {
@@ -457,23 +400,14 @@ function loadData() {
 function saveData() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ folders, driveFolders }));
-    // Les flux ont pu changer : on invalide le cache de la recherche globale
-    globalSearchCache = null;
-    globalSearchCacheTime = 0;
   } catch(e) {
     // Échec probable : stockage plein. On avertit l'utilisateur (sinon perte silencieuse de données)
     console.error('Échec sauvegarde:', e);
     toast('⚠️ Sauvegarde impossible (stockage plein)');
   }
 }
-// Positions de lecture : mémoïsées en RAM (getPositions était re-parsé pour CHAQUE
-// épisode affiché → coûteux sur les longues listes, sensible sur mobile)
-let _positionsCache = null;
 function getPositions() {
-  if (_positionsCache) return _positionsCache;
-  try { _positionsCache = JSON.parse(localStorage.getItem(POSITION_KEY) || '{}'); }
-  catch(e) { _positionsCache = {}; }
-  return _positionsCache;
+  try { return JSON.parse(localStorage.getItem(POSITION_KEY) || '{}'); } catch(e) { return {}; }
 }
 function savePosition(url, time) {
   if (!url || !time || time < 5) return;
@@ -483,8 +417,7 @@ function savePosition(url, time) {
     const entries = Object.entries(positions);
     if (entries.length > 200) {
       entries.sort((a,b) => b[1].date - a[1].date);
-      _positionsCache = Object.fromEntries(entries.slice(0,200));
-      localStorage.setItem(POSITION_KEY, JSON.stringify(_positionsCache));
+      localStorage.setItem(POSITION_KEY, JSON.stringify(Object.fromEntries(entries.slice(0,200))));
     } else {
       localStorage.setItem(POSITION_KEY, JSON.stringify(positions));
     }
@@ -509,43 +442,13 @@ function addToHistory(ep) {
 // ═══════════════════════════════════════════
 // FILE D'ATTENTE
 // ═══════════════════════════════════════════
-const QUEUE_BACKUP_KEY = 'mediastream_queue_backup_v1';
 function getQueue() {
-  try {
-    const raw = localStorage.getItem(QUEUE_KEY);
-    if (raw === null) return [];
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed;
-    throw new Error('format');
-  } catch(e) {
-    // JSON corrompu/tronqué : on tente la sauvegarde de secours avant d'abandonner
-    try {
-      const bak = JSON.parse(localStorage.getItem(QUEUE_BACKUP_KEY) || '[]');
-      if (Array.isArray(bak) && bak.length) {
-        localStorage.setItem(QUEUE_KEY, JSON.stringify(bak)); // restaure
-        return bak;
-      }
-    } catch(e2) {}
-    return [];
-  }
+  try { return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]'); }
+  catch(e) { return []; }
 }
 function saveQueue(q) {
-  if (!Array.isArray(q)) return;
-  try {
-    const json = JSON.stringify(q);
-    // Sauvegarde de secours AVANT l'écriture principale (si l'une échoue, l'autre tient)
-    try { localStorage.setItem(QUEUE_BACKUP_KEY, json); } catch(e) {}
-    localStorage.setItem(QUEUE_KEY, json);
-  } catch(e) {
-    // Stockage plein : on libère le cache des flux (non critique) puis on réessaie une fois
-    try {
-      localStorage.removeItem(FEED_CACHE_KEY);
-      localStorage.setItem(QUEUE_KEY, JSON.stringify(q));
-    } catch(e2) {
-      console.warn('Sauvegarde de la file impossible (stockage plein):', e2);
-      toast('⚠️ Stockage plein — file non sauvegardée');
-    }
-  }
+  try { localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); } catch(e) {}
+  // Met à jour le compteur dans la sidebar
   renderSidebar();
 }
 function addToQueue(ep) {
@@ -568,6 +471,15 @@ function removeFromQueue(url) {
 }
 function clearQueue() {
   saveQueue([]);
+  if (currentView?.type === 'queue') showQueue();
+}
+function moveQueueItem(idx, direction) {
+  const q = getQueue();
+  const newIdx = idx + direction;
+  if (newIdx < 0 || newIdx >= q.length) return;
+  // Échange les deux éléments
+  [q[idx], q[newIdx]] = [q[newIdx], q[idx]];
+  saveQueue(q);
   if (currentView?.type === 'queue') showQueue();
 }
 function getNextFromQueue() {
@@ -606,68 +518,6 @@ function toast(msg) {
   toastTimer = setTimeout(() => { el.style.opacity = '0'; }, 2000);
 }
 
-// ─── Glisser-déposer dans la file (souris + tactile via Pointer Events) ───
-let dragState = null;
-// ─── Glisser-déposer générique pour réordonner une liste (souris + tactile) ───
-// keyAttr : attribut data-* identifiant chaque ligne ; onReorder reçoit les clés dans le nouvel ordre
-function setupDragReorder(container, keyAttr, onReorder) {
-  container.querySelectorAll('.drag-handle').forEach(h => {
-    h.addEventListener('pointerdown', e => {
-      e.preventDefault();
-      e.stopPropagation();
-      const row = h.closest('.episode-item');
-      if (!row) return;
-      dragState = { row, container };
-      row.classList.add('dragging');
-      try { h.setPointerCapture(e.pointerId); } catch(err) {}
-    });
-    h.addEventListener('pointermove', e => {
-      if (!dragState) return;
-      e.preventDefault();
-      const el = document.elementFromPoint(e.clientX, e.clientY);
-      const over = el?.closest('.episode-item');
-      if (!over || over === dragState.row || over.parentElement !== dragState.container) return;
-      const rect = over.getBoundingClientRect();
-      const before = e.clientY < rect.top + rect.height / 2;
-      dragState.container.insertBefore(dragState.row, before ? over : over.nextSibling);
-    });
-    const finish = () => {
-      if (!dragState) return;
-      const movedRow = dragState.row;
-      movedRow.classList.remove('dragging');
-      // Ordre par INDICE d'origine (data-pos), pas par URL : robuste aux doublons
-      // d'URL et aux ré-encodages du DOM (cause du vidage intempestif de la file).
-      const order = [...dragState.container.querySelectorAll('.episode-item')]
-        .map(r => parseInt(r.dataset.pos, 10))
-        .filter(n => !isNaN(n));
-      dragState = null;
-      // Neutralise le clic de fin de glisser sur la ligne (sinon playFromQueue se déclenche
-      // et retire des éléments de la file).
-      movedRow._swiped = true;
-      setTimeout(() => { movedRow._swiped = false; }, 300);
-      onReorder(order);
-    };
-    h.addEventListener('pointerup', finish);
-    h.addEventListener('pointercancel', finish);
-    // Empêche le clic de lancer la lecture après un drag
-    h.addEventListener('click', e => e.stopPropagation());
-  });
-}
-
-function setupQueueDrag(container) {
-  setupDragReorder(container, null, order => {
-    const q = getQueue();
-    const newQ = order.map(i => q[i]).filter(Boolean);
-    // Sécurité : on ne sauvegarde QUE si la file reste complète (aucune perte)
-    if (newQ.length === q.length) {
-      saveQueue(newQ);
-      if (currentView?.type === 'queue') showQueue(); // re-numérote 1. 2. 3.
-    } else if (currentView?.type === 'queue') {
-      showQueue(); // ordre inchangé, on rafraîchit juste l'affichage
-    }
-  });
-}
-
 function showQueue() {
   currentView = { type: 'queue' };
   closeSidebar();
@@ -696,8 +546,9 @@ function showQueue() {
     const thumbHtml = ep.image
       ? `<div class="ep-thumb"><img src="${escapeAttr(ep.image)}" loading="lazy" onerror="this.style.display='none';this.parentNode.textContent='${icon}'" style="width:100%;height:100%;object-fit:cover;"></div>`
       : `<div class="ep-thumb">${icon}</div>`;
+    const upBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();moveQueueItem(${idx},-1)" title="Monter" ${idx === 0 ? 'disabled style="opacity:0.3;"' : ''}>▲</button>`;
+    const downBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();moveQueueItem(${idx},1)" title="Descendre" ${idx === q.length - 1 ? 'disabled style="opacity:0.3;"' : ''}>▼</button>`;
     div.innerHTML = `
-      <span class="drag-handle" title="Glisser pour réordonner">⠿</span>
       ${thumbHtml}
       <div class="ep-info">
         <div class="ep-title">${idx + 1}. ${escapeHTML(ep.title)}</div>
@@ -707,14 +558,12 @@ function showQueue() {
         </div>
       </div>
       <div class="ep-actions-right">
-        <button class="ep-icon-btn" onclick="event.stopPropagation();removeFromQueue('${escapeJsAttr(ep.url)}')" title="Retirer de la file">✕</button>
+        ${upBtn}${downBtn}
+        <button class="ep-icon-btn" onclick="event.stopPropagation();removeFromQueue('${escapeAttr(ep.url)}')" title="Retirer de la file">✕</button>
       </div>`;
-    div.dataset.epUrl = ep.url || '';
-    div.dataset.pos = idx;
-    div.onclick = () => { if (div._swiped) return; playFromQueue(idx); };
+    div.onclick = () => playFromQueue(idx);
     container.appendChild(div);
   });
-  setupQueueDrag(container);
 
   const badge = document.getElementById('content-badge');
   badge.textContent = q.length + ' en attente';
@@ -732,6 +581,7 @@ function renderSidebar() {
   // Dossiers spéciaux
   list.appendChild(makeSpecialItem('recents', '🕒', 'Récents', currentView?.type === 'recents'));
   list.appendChild(makeSpecialItem('queue', '▶', 'File d\'attente', currentView?.type === 'queue'));
+  list.appendChild(makeSpecialItem('verify', '🩺', 'Vérifier les podcasts', currentView?.type === 'verify'));
   list.appendChild(makeSpecialItem('search', '🔎', 'Recherche globale', currentView?.type === 'search'));
   list.appendChild(makeSpecialItem('radio', '📻', 'Radios', currentView?.type === 'radio'));
   list.appendChild(makeSpecialItem('audiobook', '📖', 'Audio-livres', currentView?.type === 'audiobook'));
@@ -803,20 +653,6 @@ function renderSidebar() {
   addDrive.innerHTML = `<span class="folder-icon">＋</span><span>Dossier Drive</span>`;
   addDrive.onclick = () => showModal('add-drive');
   list.appendChild(addDrive);
-
-  updateBottomNav();
-}
-
-// État actif + compteur de file sur la barre de navigation basse (mobile)
-function updateBottomNav() {
-  const nav = document.getElementById('bottom-nav');
-  if (!nav) return;
-  const map = { recents: 'recents', radio: 'radio', queue: 'queue', folder: 'dossiers', feed: 'dossiers', drive: 'dossiers' };
-  const active = map[currentView?.type] || '';
-  nav.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.nav === active));
-  const n = getQueue().length;
-  const c = document.getElementById('bn-queue-count');
-  if (c) { c.textContent = n; c.style.display = n ? 'inline' : 'none'; }
 }
 
 function makeSpecialItem(type, icon, name, active) {
@@ -832,6 +668,7 @@ function makeSpecialItem(type, icon, name, active) {
   div.onclick = () => {
     if (type === 'recents') showRecents();
     else if (type === 'queue') showQueue();
+    else if (type === 'verify') showVerify();
     else if (type === 'search') showGlobalSearch();
     else if (type === 'radio') showRadios();
     else if (type === 'audiobook') showAudiobooks();
@@ -854,15 +691,12 @@ function selectFolder(id) {
   const btnUnread = document.getElementById('btn-unread');
   btnUnread.style.display = 'inline-block';
   btnUnread.classList.toggle('active', unreadOnly);
-  btnUnread.textContent = unreadOnly ? '✓ Non lus' : 'Non lus';
   loadFolder(folder);
 }
 
 function toggleUnreadFilter() {
   unreadOnly = !unreadOnly;
-  const btn = document.getElementById('btn-unread');
-  btn.classList.toggle('active', unreadOnly);
-  btn.textContent = unreadOnly ? '✓ Non lus' : 'Non lus';
+  document.getElementById('btn-unread').classList.toggle('active', unreadOnly);
   // Re-rend la liste courante avec le nouveau filtre
   renderEpisodes(currentEpisodes);
 }
@@ -913,42 +747,10 @@ function showRecents() {
   const history = getHistory().slice(0, 30);
   currentEpisodes = history;
   renderEpisodes(history);
-  renderContinueCard();
   const badge = document.getElementById('content-badge');
   badge.textContent = history.length + ' épisodes';
   badge.className = 'badge badge-purple';
   badge.style.display = 'inline';
-}
-
-// Carte "Reprendre l'écoute" : dernier média lu, avec sa position de reprise
-function renderContinueCard() {
-  let last = null;
-  try { last = JSON.parse(localStorage.getItem(LAST_PLAYED_KEY) || 'null'); } catch(e) {}
-  if (!last || !last.url) return;
-  if (activeEpisode && activeEpisode.url === last.url) return; // déjà en cours de lecture
-  const list = document.getElementById('episodes-list');
-  const pos = getPosition(last.url);
-  const card = document.createElement('div');
-  card.className = 'episode-item';
-  card.style.cssText = 'border:1px solid var(--accent2);background:var(--bg3);margin-bottom:10px;';
-  const icon = last.type === 'video' ? '🎬' : (last.isDrive ? '☁' : '🎙');
-  const thumbHtml = last.image
-    ? `<div class="ep-thumb"><img src="${escapeAttr(last.image)}" loading="lazy" onerror="this.style.display='none';this.parentNode.textContent='${icon}'" style="width:100%;height:100%;object-fit:cover;"></div>`
-    : `<div class="ep-thumb">${icon}</div>`;
-  card.innerHTML = `
-    ${thumbHtml}
-    <div class="ep-info">
-      <div class="ep-meta" style="margin:0 0 3px;"><span class="ep-resume" style="background:rgba(88,166,255,0.15);color:var(--accent);">▶ Reprendre l'écoute</span></div>
-      <div class="ep-title">${escapeHTML(last.title)}</div>
-      <div class="ep-meta">
-        <span class="ep-source">${escapeHTML(last.feed || '')}</span>
-        ${pos > 5 ? `<span class="ep-resume">⏱ ${formatTime(pos)}</span>` : ''}
-      </div>
-    </div>`;
-  card.onclick = () => playEpisode(last, null);
-  // S'il n'y a aucun historique, on remplace le message "Aucun épisode"
-  if (!getHistory().length) list.innerHTML = '';
-  list.prepend(card);
 }
 
 // ═══════════════════════════════════════════
@@ -1016,8 +818,11 @@ async function runVerification() {
 
     let status = 'ok', detail = '';
     try {
-      const text = await proxyFetchText(feed.url, { timeout: 15000 });
-      {
+      const res = await fetch(PROXY + encodeURIComponent(feed.url), { signal: AbortSignal.timeout(15000) });
+      if (!res.ok) {
+        status = 'error'; detail = `Erreur HTTP ${res.status}`;
+      } else {
+        const text = await res.text();
         const xml = new DOMParser().parseFromString(text, 'application/xml');
         if (xml.querySelector('parsererror')) {
           status = 'error'; detail = 'Flux illisible (XML invalide)';
@@ -1041,8 +846,7 @@ async function runVerification() {
       }
     } catch(e) {
       status = 'error';
-      detail = /^HTTP \d+/.test(e.message || '') ? `Erreur ${e.message}`
-        : (e.name === 'TimeoutError' ? 'Délai dépassé' : 'Inaccessible');
+      detail = e.name === 'TimeoutError' ? 'Délai dépassé' : 'Inaccessible';
     }
 
     if (status === 'ok') { okCount++; }
@@ -1063,8 +867,8 @@ async function runVerification() {
     const row = document.createElement('div');
     row.className = 'episode-item';
     // Bouton réparer (cherche un nouveau flux RSS) + bouton supprimer
-    const repairBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();repairFeed('${escapeJsAttr(feed.folderId)}','${escapeJsAttr(feed.url)}','${escapeJsAttr(feed.name)}',this)" title="Chercher un flux de remplacement" style="color:var(--accent);border-color:rgba(88,166,255,0.4);">🔧</button>`;
-    const delBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();deleteFeedFromVerify('${escapeJsAttr(feed.folderId)}','${escapeJsAttr(feed.url)}','${escapeJsAttr(feed.name)}',this)" title="Supprimer ce podcast" style="color:var(--red);border-color:rgba(248,81,73,0.4);">🗑</button>`;
+    const repairBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();repairFeed('${escapeAttr(feed.folderId)}','${escapeAttr(feed.url)}','${escapeAttr(feed.name)}',this)" title="Chercher un flux de remplacement" style="color:var(--accent);border-color:rgba(88,166,255,0.4);">🔧</button>`;
+    const delBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();deleteFeedFromVerify('${escapeAttr(feed.folderId)}','${escapeAttr(feed.url)}','${escapeAttr(feed.name)}',this)" title="Supprimer ce podcast" style="color:var(--red);border-color:rgba(248,81,73,0.4);">🗑</button>`;
     row.innerHTML = `
       <div class="ep-thumb" style="font-size:18px;">${icon}</div>
       <div class="ep-info">
@@ -1201,7 +1005,7 @@ async function showGlobalSearch() {
     list.innerHTML = `<div class="loading-text">Chargement de tous les flux<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>`;
     let allEps = [];
     for (const folder of folders) {
-      const results = await mapLimit(folder.feeds, 3, f => loadFeed(f));
+      const results = await Promise.allSettled(folder.feeds.map(f => loadFeed(f)));
       results.forEach(r => {
         if (r.status === 'fulfilled') allEps = allEps.concat(r.value.map(e => ({...e, folderName: folder.name})));
       });
@@ -1250,6 +1054,19 @@ function toggleRadioFavorite(uuid, stationData) {
 function getRadioFavoritesSorted() {
   const favs = getRadioFavorites();
   return Object.values(favs).sort((a, b) => (a._order ?? 0) - (b._order ?? 0));
+}
+// Déplace un favori dans l'ordre (direction -1 = monter, +1 = descendre)
+function moveRadioFavorite(uuid, direction) {
+  const sorted = getRadioFavoritesSorted();
+  const idx = sorted.findIndex(f => f.stationuuid === uuid);
+  const newIdx = idx + direction;
+  if (idx === -1 || newIdx < 0 || newIdx >= sorted.length) return;
+  [sorted[idx], sorted[newIdx]] = [sorted[newIdx], sorted[idx]];
+  // Réassigne les ordres séquentiellement
+  const favs = getRadioFavorites();
+  sorted.forEach((f, i) => { if (favs[f.stationuuid]) favs[f.stationuuid]._order = i; });
+  localStorage.setItem(RADIO_FAVORITES_KEY, JSON.stringify(favs));
+  if (currentView?.type === 'radio' && radioView === 'favorites') renderRadioFavorites();
 }
 
 async function loadRadioCountries() {
@@ -1337,9 +1154,10 @@ function renderRadioFavorites() {
     const imgHtml = ep.image
       ? `<img src="${escapeAttr(ep.image)}" loading="lazy" onerror="this.style.display='none';this.parentNode.textContent='📻'" style="width:100%;height:100%;object-fit:cover;">`
       : '📻';
-    const removeBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();toggleRadioFavBtn('${escapeJsAttr(ep.stationuuid)}', this)" title="Retirer des favoris" style="color:#fbbf24;border-color:#fbbf24;">★</button>`;
+    const upBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();moveRadioFavorite('${escapeAttr(ep.stationuuid)}',-1)" title="Monter" ${idx === 0 ? 'disabled style="opacity:0.3;"' : ''}>▲</button>`;
+    const downBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();moveRadioFavorite('${escapeAttr(ep.stationuuid)}',1)" title="Descendre" ${idx === eps.length - 1 ? 'disabled style="opacity:0.3;"' : ''}>▼</button>`;
+    const removeBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();toggleRadioFavBtn('${escapeAttr(ep.stationuuid)}', this)" title="Retirer des favoris" style="color:#fbbf24;border-color:#fbbf24;">★</button>`;
     div.innerHTML = `
-      <span class="drag-handle" title="Glisser pour réordonner">⠿</span>
       <div class="ep-thumb">${imgHtml}</div>
       <div class="ep-info">
         <div class="ep-title">${escapeHTML(ep.title)}</div>
@@ -1348,21 +1166,10 @@ function renderRadioFavorites() {
           <span>${escapeHTML(ep.description)}</span>
         </div>
       </div>
-      <div class="ep-actions-right">${removeBtn}</div>`;
-    div.dataset.uuid = ep.stationuuid || '';
-    div.dataset.pos = idx;
+      <div class="ep-actions-right">${upBtn}${downBtn}${removeBtn}</div>`;
     div._station = ep._raw;
     div.onclick = () => playEpisode(ep, div);
     content.appendChild(div);
-  });
-  // Réordonnancement des favoris par glisser-déposer (par index, comme la file)
-  setupDragReorder(content, null, order => {
-    const sorted = order.map(i => eps[i]).filter(Boolean);
-    if (sorted.length !== eps.length) { renderRadioFavorites(); return; }
-    const favs = getRadioFavorites();
-    sorted.forEach((ep, i) => { if (favs[ep.stationuuid]) favs[ep.stationuuid]._order = i; });
-    try { localStorage.setItem(RADIO_FAVORITES_KEY, JSON.stringify(favs)); } catch(e) {}
-    if (currentView?.type === 'radio' && radioView === 'favorites') renderRadioFavorites();
   });
 
   const badge = document.getElementById('content-badge');
@@ -1453,7 +1260,7 @@ async function searchRadios() {
         ? `<img src="${escapeAttr(ep.image)}" loading="lazy" onerror="this.style.display='none';this.parentNode.textContent='📻'" style="width:100%;height:100%;object-fit:cover;">`
         : '📻';
       const isFav = isRadioFavorite(ep.stationuuid);
-      const starBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();toggleRadioFavBtn('${escapeJsAttr(ep.stationuuid)}', this)" title="${isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}" style="${isFav ? 'color:#fbbf24;border-color:#fbbf24;' : ''}">${isFav ? '★' : '☆'}</button>`;
+      const starBtn = `<button class="ep-icon-btn" onclick="event.stopPropagation();toggleRadioFavBtn('${escapeAttr(ep.stationuuid)}', this)" title="${isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}" style="${isFav ? 'color:#fbbf24;border-color:#fbbf24;' : ''}">${isFav ? '★' : '☆'}</button>`;
       div.innerHTML = `
         <div class="ep-thumb">${imgHtml}</div>
         <div class="ep-info">
@@ -1565,46 +1372,6 @@ function showAudiobooks() {
 // ═══════════════════════════════════════════
 // CHARGEMENT FLUX
 // ═══════════════════════════════════════════
-// Limite le nombre de requêtes simultanées vers le proxy (le chargement en parallèle
-// de tous les flux contribuait au blocage de l'IP partagée Cloudflare le soir).
-async function mapLimit(items, limit, fn) {
-  const results = new Array(items.length);
-  let i = 0;
-  async function worker() {
-    while (i < items.length) {
-      const idx = i++;
-      try { results[idx] = { status: 'fulfilled', value: await fn(items[idx]) }; }
-      catch(e) { results[idx] = { status: 'rejected', reason: e }; }
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) || 1 }, worker));
-  return results;
-}
-
-// ─── Cache local des flux RSS ───
-// 1) Frais (< 10 min) : on évite une requête au proxy (navigation plus rapide, moins de trafic).
-// 2) Périmé mais présent : sert de SECOURS si le proxy est bloqué (problème du soir) :
-//    on affiche les derniers épisodes connus au lieu d'un écran vide.
-const FEED_CACHE_TTL = 10 * 60 * 1000;
-function getFeedCache() {
-  try { return JSON.parse(localStorage.getItem(FEED_CACHE_KEY) || '{}'); } catch(e) { return {}; }
-}
-function setFeedCache(url, episodes) {
-  try {
-    const c = getFeedCache();
-    c[url] = { time: Date.now(), episodes };
-    let entries = Object.entries(c);
-    if (entries.length > 40) { // garde les 40 flux les plus récents
-      entries.sort((a,b) => b[1].time - a[1].time);
-      entries = entries.slice(0, 40);
-    }
-    localStorage.setItem(FEED_CACHE_KEY, JSON.stringify(Object.fromEntries(entries)));
-  } catch(e) {
-    // Stockage plein : le cache des flux n'est pas critique, on le vide
-    try { localStorage.removeItem(FEED_CACHE_KEY); } catch(e2) {}
-  }
-}
-
 // Fetch avec timeout plus long et nouvelle tentative automatique (robustesse réseau, surtout le soir)
 async function fetchWithRetry(url, { timeout = 30000, retries = 1 } = {}) {
   let lastErr;
@@ -1625,24 +1392,8 @@ async function fetchWithRetry(url, { timeout = 30000, retries = 1 } = {}) {
 }
 
 async function loadFeed(feed) {
-  const cached = getFeedCache()[feed.url];
-  // Cache frais : pas de requête au proxy
-  if (cached && Date.now() - cached.time < FEED_CACHE_TTL) {
-    return cached.episodes.map(e => ({ ...e, feed: feed.name }));
-  }
-  try {
-    const eps = await fetchFeedFromNetwork(feed);
-    setFeedCache(feed.url, eps);
-    return eps;
-  } catch(e) {
-    // Proxy/réseau injoignable (problème du soir) : on sert la dernière version connue
-    if (cached) return cached.episodes.map(ep => ({ ...ep, feed: feed.name, fromCache: true }));
-    throw e;
-  }
-}
-
-async function fetchFeedFromNetwork(feed) {
-  const text = await proxyFetchText(feed.url, { timeout: 30000 });
+  const res = await fetchWithRetry(PROXY + encodeURIComponent(feed.url), { timeout: 30000, retries: 1 });
+  const text = await res.text();
   const parser = new DOMParser();
   const xml = parser.parseFromString(text, 'application/xml');
   if (xml.querySelector('parsererror')) throw new Error('XML invalide');
@@ -1656,7 +1407,7 @@ async function fetchFeedFromNetwork(feed) {
   }
 
   const items = xml.querySelectorAll('item');
-  return Array.from(items).slice(0, 10).map(item => {
+  return Array.from(items).slice(0, 50).map(item => {
     const enc = item.querySelector('enclosure');
     let duration = '';
     const durEl = item.getElementsByTagName('itunes:duration')[0];
@@ -1697,8 +1448,7 @@ async function loadFolder(folder) {
     return;
   }
 
-  // 3 flux à la fois maximum (ménage le proxy et les serveurs distants)
-  const results = await mapLimit(folder.feeds, 3, f => loadFeed(f));
+  const results = await Promise.allSettled(folder.feeds.map(f => loadFeed(f)));
   let allEps = [];
   const failed = [];
   results.forEach((r, i) => {
@@ -1727,40 +1477,14 @@ async function loadFolder(folder) {
   currentEpisodes = allEps;
   renderEpisodes(allEps);
 
-  const stale = allEps.some(e => e.fromCache);
-  if (stale) toast('⚠️ Proxy injoignable — affichage des derniers épisodes connus');
-
   const badge = document.getElementById('content-badge');
-  badge.textContent = allEps.length + ' épisodes' + (failed.length ? ` · ${failed.length} ⨯` : '') + (stale ? ' · 📦 cache' : '');
+  badge.textContent = allEps.length + ' épisodes' + (failed.length ? ` · ${failed.length} ⨯` : '');
   badge.style.display = 'inline';
-  badge.className = stale ? 'badge badge-red' : 'badge badge-blue';
+  badge.className = failed.length ? 'badge badge-blue' : 'badge badge-blue';
   if (failed.length) console.warn('Échec:', failed);
 }
 
-let _readCache = null;
-function getReadOverrides() {
-  if (_readCache) return _readCache;
-  try { _readCache = JSON.parse(localStorage.getItem(READ_OVERRIDE_KEY) || '{}'); }
-  catch(e) { _readCache = {}; }
-  return _readCache;
-}
-function toggleRead(url) {
-  if (!url) return;
-  try {
-    const o = getReadOverrides();
-    const ep = renderedEpisodes.find(e => e.url === url) || { url };
-    const newState = !isFinished(ep); // on force l'état inverse de l'état effectif courant
-    o[url] = newState;
-    localStorage.setItem(READ_OVERRIDE_KEY, JSON.stringify(o));
-    toast(newState ? '✓ Marqué comme lu' : '↺ Marqué non lu');
-  } catch(e) {}
-  renderEpisodes(renderedEpisodes);
-}
-
 function isFinished(ep) {
-  // Statut forcé manuellement : prioritaire
-  const o = getReadOverrides();
-  if (ep.url && ep.url in o) return !!o[ep.url];
   const pos = getPosition(ep.url);
   if (!pos) return false;
   // Pour les positions sauvegardées : si on a dépassé 95% d'une durée connue (depuis position vs durée RSS approx)
@@ -1779,10 +1503,7 @@ function parseDurationToSeconds(d) {
   return 0;
 }
 
-let renderedEpisodes = []; // liste réellement affichée (peut être filtrée) — les boutons ⓘ/➕ s'y réfèrent
-
 function renderEpisodes(eps) {
-  renderedEpisodes = eps;
   const list = document.getElementById('episodes-list');
   list.innerHTML = '';
   if (!eps.length) { list.innerHTML = '<div class="empty-text">Aucun épisode</div>'; return; }
@@ -1806,9 +1527,8 @@ function renderEpisodes(eps) {
       ? `<div class="ep-thumb"><img src="${escapeAttr(ep.image)}" loading="lazy" onerror="this.style.display='none';this.parentNode.textContent='${icon}'" style="width:100%;height:100%;object-fit:cover;"></div>`
       : `<div class="ep-thumb">${icon}</div>`;
     const infoBtn = ep.description ? `<button class="ep-icon-btn" onclick="event.stopPropagation();showEpisodeInfo(${idx})" title="Description">ⓘ</button>` : '';
-    const queueBtn = !ep.isRadio ? `<button class="ep-icon-btn" onclick='event.stopPropagation();addToQueue(renderedEpisodes[${idx}])' title="Ajouter à la file">➕</button>` : '';
-    const readBtn = !ep.isRadio ? `<button class="ep-icon-btn" onclick="event.stopPropagation();toggleRead('${escapeJsAttr(ep.url)}')" title="${finished ? 'Marquer non lu' : 'Marquer comme lu'}" ${finished ? 'style="color:var(--green);border-color:var(--green);"' : ''}>${finished ? '↺' : '✓'}</button>` : '';
-    const removeBtn = isRecentsView ? `<button class="ep-icon-btn" onclick="event.stopPropagation();removeFromHistory('${escapeJsAttr(ep.url)}')" title="Retirer">✕</button>` : '';
+    const queueBtn = !ep.isRadio ? `<button class="ep-icon-btn" onclick='event.stopPropagation();addToQueue(currentEpisodes[${idx}])' title="Ajouter à la file">➕</button>` : '';
+    const removeBtn = isRecentsView ? `<button class="ep-icon-btn" onclick="event.stopPropagation();removeFromHistory('${escapeAttr(ep.url)}')" title="Retirer">✕</button>` : '';
     div.innerHTML = `
       ${thumbHtml}
       <div class="ep-info">
@@ -1821,10 +1541,8 @@ function renderEpisodes(eps) {
           ${finishedTxt}
         </div>
       </div>
-      <div class="ep-actions-right">${infoBtn}${queueBtn}${readBtn}${removeBtn}</div>`;
-    div.dataset.epUrl = ep.url || '';
-    div.onclick = () => { if (div._swiped) return; playEpisode(ep, div); };
-    attachSwipe(div, ep);
+      <div class="ep-actions-right">${infoBtn}${queueBtn}${removeBtn}</div>`;
+    div.onclick = () => playEpisode(ep, div);
     list.appendChild(div);
   });
   // Si le filtre "non lus" a tout masqué
@@ -1833,76 +1551,12 @@ function renderEpisodes(eps) {
   }
 }
 
-// ─── Balayage latéral sur un épisode (tactile) ───
-// Glisser vers la DROITE → ajouter à la file d'attente
-// Glisser vers la GAUCHE → marquer lu / non lu
-function attachSwipe(div, ep) {
-  if (ep.isRadio) return;
-  let startX = 0, startY = 0, dx = 0, engaged = false;
-
-  div.addEventListener('touchstart', e => {
-    if (e.touches.length !== 1) return;
-    startX = e.touches[0].clientX;
-    startY = e.touches[0].clientY;
-    dx = 0; engaged = false;
-    div.style.transition = '';
-  }, { passive: true });
-
-  div.addEventListener('touchmove', e => {
-    if (startX === null) return; // défilement vertical en cours : on n'interfère plus
-    const t = e.touches[0];
-    dx = t.clientX - startX;
-    const dy = t.clientY - startY;
-    if (!engaged) {
-      if (Math.abs(dx) > 14 && Math.abs(dx) > Math.abs(dy) * 1.5) engaged = true; // geste horizontal franc
-      else if (Math.abs(dy) > 14) { startX = null; return; } // c'est un défilement : on laisse faire
-    }
-    if (!engaged) return;
-    e.preventDefault(); // bloque le scroll pendant le balayage horizontal
-    const limited = Math.max(-110, Math.min(110, dx));
-    div.style.transform = `translateX(${limited}px)`;
-    div.style.borderColor = dx > 70 ? 'var(--accent2)' : (dx < -70 ? 'var(--green)' : 'var(--border)');
-  }, { passive: false });
-
-  div.addEventListener('touchend', () => {
-    if (engaged) {
-      // Empêche le clic résiduel de lancer la lecture
-      div._swiped = true;
-      setTimeout(() => { div._swiped = false; }, 400);
-      if (dx > 70) addToQueue(ep);
-      else if (dx < -70) toggleRead(ep.url);
-    }
-    div.style.transition = 'transform 0.2s';
-    div.style.transform = '';
-    div.style.borderColor = '';
-    engaged = false; startX = 0;
-  });
-
-  div.addEventListener('touchcancel', () => {
-    div.style.transition = 'transform 0.2s';
-    div.style.transform = '';
-    div.style.borderColor = '';
-    engaged = false; startX = 0;
-  });
-}
-
 function escapeAttr(s) {
   return String(s||'').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
-// Échappement pour une chaîne JS placée DANS un attribut onclick (délimité par ").
-// escapeAttr ne suffit pas : &#39; est re-décodé en ' par le parseur HTML et casse/injecte du JS.
-function escapeJsAttr(s) {
-  return String(s||'')
-    .replace(/\\/g, '\\\\')
-    .replace(/'/g, "\\'")
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
 
 function showEpisodeInfo(idx) {
-  const ep = renderedEpisodes[idx];
+  const ep = currentEpisodes[idx];
   if (!ep) return;
   modalMode = 'episode-info';
   document.getElementById('modal-title').textContent = 'ⓘ ' + ep.title;
@@ -1914,7 +1568,7 @@ function showEpisodeInfo(idx) {
     </div>`;
   document.getElementById('modal-actions').innerHTML = `
     <button class="btn-cancel" onclick="closeModal()">Fermer</button>
-    <button class="btn-ok" onclick="closeModal();playEpisode(renderedEpisodes[${idx}], null);">▶ Écouter</button>`;
+    <button class="btn-ok" onclick="closeModal();playEpisode(currentEpisodes[${idx}], null);">▶ Écouter</button>`;
   document.getElementById('modal').style.display = 'flex';
 }
 
@@ -1927,8 +1581,8 @@ function removeFromHistory(url) {
 }
 
 function filterEpisodes() {
-  // La recherche du header ne s'applique pas aux vues qui ont leur propre moteur ou un rendu spécifique
-  if (['radio','audiobook','queue','verify'].includes(currentView?.type)) return;
+  // La recherche du header ne s'applique pas aux vues qui ont leur propre moteur de recherche
+  if (currentView?.type === 'radio' || currentView?.type === 'audiobook') return;
   const q = document.getElementById('search-input').value.toLowerCase().trim();
   if (!q) return renderEpisodes(currentEpisodes);
   renderEpisodes(currentEpisodes.filter(e =>
@@ -1939,8 +1593,6 @@ function filterEpisodes() {
 // ═══════════════════════════════════════════
 // GOOGLE DRIVE
 // ═══════════════════════════════════════════
-let driveNavStack = []; // pile de navigation dans les sous-dossiers Drive
-
 function selectDrive(idx) {
   currentView = { type: 'drive', idx };
   closeSidebar();
@@ -1948,22 +1600,7 @@ function selectDrive(idx) {
   renderSidebar();
   document.getElementById('content-title').textContent = '☁ ' + d.name;
   document.getElementById('btn-add-feed').style.display = 'none';
-  driveNavStack = [{ id: d.id, name: d.name }];
   loadDriveFolder(d.id, d.name);
-}
-
-function driveNavigate(id, name) {
-  driveNavStack.push({ id, name });
-  document.getElementById('content-title').textContent = '☁ ' + name;
-  loadDriveFolder(id, name);
-}
-
-function driveBack() {
-  if (driveNavStack.length <= 1) return;
-  driveNavStack.pop();
-  const top = driveNavStack[driveNavStack.length - 1];
-  document.getElementById('content-title').textContent = '☁ ' + top.name;
-  loadDriveFolder(top.id, top.name);
 }
 
 async function loadDriveFolder(folderId, folderName) {
@@ -1972,18 +1609,14 @@ async function loadDriveFolder(folderId, folderName) {
   currentEpisodes = [];
 
   try {
-    const url = `https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents+and+trashed=false&fields=files(id,name,mimeType,size)&orderBy=folder,name&pageSize=1000&key=${DRIVE_API_KEY}`;
+    const url = `https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents+and+trashed=false&fields=files(id,name,mimeType,size)&orderBy=name&pageSize=1000&key=${DRIVE_API_KEY}`;
     const res = await fetch(url);
     const data = await res.json();
     if (data.error) throw new Error(data.error.message);
 
-    const all = data.files || [];
-    const subfolders = all.filter(f => f.mimeType === 'application/vnd.google-apps.folder');
-    const files = all.filter(f => f.mimeType.includes('audio') || f.mimeType.includes('video'));
-
-    if (!files.length && !subfolders.length) {
+    const files = (data.files || []).filter(f => f.mimeType.includes('audio') || f.mimeType.includes('video'));
+    if (!files.length) {
       list.innerHTML = '<div class="empty-text">Aucun fichier audio/vidéo dans ce dossier.<br><small style="color:var(--text3);">Vérifie que le dossier est partagé "avec le lien".</small></div>';
-      if (driveNavStack.length > 1) prependDriveNav(list, subfolders);
       return;
     }
 
@@ -2000,44 +1633,13 @@ async function loadDriveFolder(folderId, folderName) {
     }));
     currentEpisodes = eps;
     renderEpisodes(eps);
-    if (!eps.length) list.innerHTML = ''; // retire le message "Aucun épisode" s'il n'y a que des sous-dossiers
-    prependDriveNav(list, subfolders);
 
     const badge = document.getElementById('content-badge');
-    badge.textContent = eps.length + ' fichiers' + (subfolders.length ? ` · ${subfolders.length} 📁` : '');
+    badge.textContent = eps.length + ' fichiers';
     badge.style.display = 'inline';
     badge.className = 'badge badge-blue';
   } catch(e) {
     list.innerHTML = `<div class="error-text" style="color:var(--red);padding:12px;">Erreur Drive : ${escapeHTML(e.message)}</div>`;
-  }
-}
-
-// Insère en tête de liste : bouton retour (si sous-dossier) puis les sous-dossiers
-function prependDriveNav(list, subfolders) {
-  [...subfolders].reverse().forEach(sf => {
-    const row = document.createElement('div');
-    row.className = 'episode-item';
-    row.innerHTML = `
-      <div class="ep-thumb" style="font-size:20px;">📁</div>
-      <div class="ep-info" style="align-self:center;">
-        <div class="ep-title">${escapeHTML(sf.name)}</div>
-      </div>
-      <div class="ep-actions-right" style="align-self:center;color:var(--text3);">›</div>`;
-    row.onclick = () => driveNavigate(sf.id, sf.name);
-    list.prepend(row);
-  });
-  if (driveNavStack.length > 1) {
-    const back = document.createElement('div');
-    back.className = 'episode-item';
-    back.style.cssText = 'border:1px solid var(--border);background:var(--bg2);';
-    const parent = driveNavStack[driveNavStack.length - 2];
-    back.innerHTML = `
-      <div class="ep-thumb" style="font-size:18px;">⬅</div>
-      <div class="ep-info" style="align-self:center;">
-        <div class="ep-title" style="color:var(--text2);">Retour à « ${escapeHTML(parent.name)} »</div>
-      </div>`;
-    back.onclick = () => driveBack();
-    list.prepend(back);
   }
 }
 
@@ -2047,9 +1649,6 @@ function prependDriveNav(list, subfolders) {
 const audio = document.getElementById('audio-player');
 const video = document.getElementById('video-player');
 let activeMedia = audio; // alias vers le lecteur actuellement actif
-let pendingLoadHandler = null; // listener loadedmetadata en attente (anti-fantôme)
-let pendingLoadTarget = null;
-let currentSpeed = 1; // vitesse de lecture courante, réappliquée à chaque épisode
 
 function setPlayerArt(ep, isVideo) {
   const artEl = document.getElementById('player-art');
@@ -2073,13 +1672,11 @@ function setPlayerArt(ep, isVideo) {
   }
 }
 
-let playerCollapsed = true; // lecteur réduit par défaut ; le choix de l'utilisateur est retenu pour la session
-
 function togglePlayerCollapse() {
   const playerEl = document.getElementById('player');
   const btn = document.getElementById('player-collapse');
-  playerCollapsed = playerEl.classList.toggle('collapsed');
-  if (playerCollapsed) {
+  const collapsed = playerEl.classList.toggle('collapsed');
+  if (collapsed) {
     btn.textContent = '▴';
     btn.title = 'Déployer le lecteur';
   } else {
@@ -2088,53 +1685,24 @@ function togglePlayerCollapse() {
   }
 }
 
-function toggleMiniPlay(e) {
-  e.stopPropagation();
-  if (!activeEpisode) return;
-  if (activeMedia.paused) activeMedia.play().catch(() => {});
-  else activeMedia.pause();
-}
-
 function playEpisode(ep, el, fromQueue = false) {
   if (activeEpisodeEl) activeEpisodeEl.classList.remove('playing');
   if (el) { el.classList.add('playing'); activeEpisodeEl = el; }
   activeEpisode = ep;
   playingFromQueue = fromQueue; // mémorise si la lecture vient de la file d'attente
 
-  // Mémorise le dernier média écouté (carte "Reprendre" au prochain lancement)
-  if (!ep.isRadio && ep.url) {
-    try {
-      localStorage.setItem(LAST_PLAYED_KEY, JSON.stringify({
-        title: ep.title, url: ep.url, feed: ep.feed, type: ep.type,
-        duration: ep.duration, image: ep.image, description: ep.description,
-        date: ep.date, isDrive: ep.isDrive, folderName: ep.folderName,
-        mimeType: ep.mimeType, driveId: ep.driveId,
-      }));
-    } catch(e) {}
-  }
-
   // Affiche le lecteur (masqué au démarrage tant que rien n'est lu)
   const playerEl = document.getElementById('player');
   playerEl.classList.remove('player-hidden');
-  // Applique la préférence réduit/déployé. Exception : une vidéo regardée
-  // (pas en mode audio seul) déploie toujours le lecteur pour voir l'image.
-  const wantCollapsed = (ep.type === 'video' && !audioOnlyMode) ? false : playerCollapsed;
-  playerEl.classList.toggle('collapsed', wantCollapsed);
+  // Si l'utilisateur l'avait réduit, on le déploie à la nouvelle lecture
+  playerEl.classList.remove('collapsed');
   const collapseBtn = document.getElementById('player-collapse');
-  if (collapseBtn) {
-    collapseBtn.textContent = wantCollapsed ? '▴' : '▾';
-    collapseBtn.title = wantCollapsed ? 'Déployer le lecteur' : 'Réduire le lecteur';
-  }
-  // Remet la barre de progression à zéro le temps du chargement
-  const fill = document.getElementById('player-progress-fill');
-  if (fill) fill.style.width = '0%';
+  if (collapseBtn) { collapseBtn.textContent = '▾'; collapseBtn.title = 'Réduire le lecteur'; }
 
   // Choix du lecteur : <video> pour les vidéos (visible ou caché), <audio> pour les podcasts
   const isVideo = ep.type === 'video';
   if (isVideo) {
     audio.pause(); audio.style.display = 'none';
-    // Libère la source de l'élément inactif (évite double buffering)
-    if (audio.src) { audio.removeAttribute('src'); audio.load(); }
     video.style.display = 'block';
     // Mode audio-seul : on garde l'élément <video> actif mais on le rend invisible
     // (Chrome continue mieux la lecture en arrière-plan avec un élément <video> qu'avec <audio> chargé d'un .mp4)
@@ -2150,18 +1718,12 @@ function playEpisode(ep, el, fromQueue = false) {
     activeMedia = video;
   } else {
     video.pause(); video.style.display = 'none';
-    if (video.src) { video.removeAttribute('src'); video.load(); }
     audio.style.display = 'block';
     activeMedia = audio;
   }
 
-  // Stream : Drive, radios et audio-livres en direct (CORS-ok).
-  // Podcasts : DIRECT d'abord — un élément <audio> n'a pas besoin de CORS pour lire,
-  // et le proxy Cloudflare est inaccessible le soir (blocages LaLiga des IP Cloudflare
-  // par les opérateurs espagnols). Si la lecture directe échoue (hotlinking bloqué par
-  // le serveur du podcast), le handler 'error' bascule automatiquement sur le proxy.
-  ep._viaProxy = false;
-  activeMedia.src = ep.url;
+  // Stream : Drive direct + Radios direct + Audio-livres direct (tous CORS-ok), tout le reste via proxy
+  activeMedia.src = (ep.isDrive || ep.isRadio) ? ep.url : (PROXY + encodeURIComponent(ep.url));
 
   document.getElementById('player-title').textContent = ep.title;
   document.getElementById('player-sub').textContent = ep.feed || '';
@@ -2176,11 +1738,6 @@ function playEpisode(ep, el, fromQueue = false) {
   if (!ep.isRadio) addToHistory(ep);
 
   const onceLoaded = () => {
-    if (pendingLoadHandler === onceLoaded) { pendingLoadHandler = null; pendingLoadTarget = null; }
-    // Garde-fou : si un autre épisode a été lancé entre-temps, on ignore
-    if (activeEpisode !== ep) return;
-    // Réapplique la vitesse choisie (changer de src peut la remettre à 1 selon le navigateur)
-    activeMedia.playbackRate = currentSpeed;
     // Pas de reprise pour les radios (flux live)
     // Pas de reprise pour les fichiers Drive courts (< 10 min) : ce sont des chansons, on les réécoute depuis le début
     const isShortDriveFile = ep.isDrive && activeMedia.duration && activeMedia.duration < 600;
@@ -2192,13 +1749,6 @@ function playEpisode(ep, el, fromQueue = false) {
     }
     activeMedia.play().catch(e => console.warn('Lecture refusée:', e));
   };
-  // Retire un éventuel listener resté en attente (épisode précédent en échec de chargement) :
-  // sinon il se déclencherait sur CE média avec l'ancienne position sauvegardée.
-  if (pendingLoadHandler && pendingLoadTarget) {
-    pendingLoadTarget.removeEventListener('loadedmetadata', pendingLoadHandler);
-  }
-  pendingLoadHandler = onceLoaded;
-  pendingLoadTarget = activeMedia;
   activeMedia.addEventListener('loadedmetadata', onceLoaded, { once: true });
 
   if ('mediaSession' in navigator) {
@@ -2223,23 +1773,14 @@ function playEpisode(ep, el, fromQueue = false) {
     const status = document.getElementById('player-status');
     status.style.color = '';
     status.textContent = isRadio ? '● LIVE' : '▶ LECTURE';
-    if (m === activeMedia) document.getElementById('btn-mini-play').textContent = '⏸';
   });
   m.addEventListener('pause', () => {
     document.getElementById('player-status').className = 'player-status idle';
     document.getElementById('player-status').textContent = 'PAUSE';
-    if (m === activeMedia) document.getElementById('btn-mini-play').textContent = '▶';
   });
   let lastSave = 0;
   m.addEventListener('timeupdate', () => {
-    if (m !== activeMedia) return;
-    // Barre de progression du lecteur réduit (radios : pas de durée → barre vide)
-    const fill = document.getElementById('player-progress-fill');
-    if (fill) {
-      fill.style.width = (m.duration && isFinite(m.duration))
-        ? (m.currentTime / m.duration * 100).toFixed(2) + '%' : '0%';
-    }
-    if (!activeEpisode || activeEpisode.isRadio) return;
+    if (!activeEpisode || activeEpisode.isRadio || m !== activeMedia) return;
     // Pas de sauvegarde pour les fichiers Drive courts (< 10 min) : chansons réécoutées depuis le début
     const isShortDriveFile = activeEpisode.isDrive && m.duration && m.duration < 600;
     if (isShortDriveFile) return;
@@ -2285,21 +1826,6 @@ function playEpisode(ep, el, fromQueue = false) {
   });
   m.addEventListener('error', () => {
     if (m !== activeMedia || !activeEpisode) return;
-    const ep = activeEpisode;
-    // Podcast en lecture directe qui échoue (hotlinking refusé, redirection exotique…) :
-    // on re-tente une seule fois via le proxy, en conservant la position éventuelle.
-    if (!ep.isRadio && !ep.isDrive && !ep._viaProxy) {
-      ep._viaProxy = true;
-      const resumeAt = m.currentTime || 0;
-      console.warn('Lecture directe échouée, bascule sur le proxy:', ep.title);
-      m.src = PROXY + encodeURIComponent(ep.url);
-      m.addEventListener('loadedmetadata', () => {
-        if (activeEpisode === ep && resumeAt > 5 && m.duration && resumeAt < m.duration - 5) m.currentTime = resumeAt;
-        m.play().catch(() => {});
-      }, { once: true });
-      m.load();
-      return;
-    }
     const status = document.getElementById('player-status');
     status.className = 'player-status idle';
     status.textContent = '⚠ ERREUR';
@@ -2314,18 +1840,7 @@ function playEpisode(ep, el, fromQueue = false) {
   });
 });
 
-// Barre de progression cliquable : saut proportionnel dans le média
-document.getElementById('player-progress').addEventListener('click', e => {
-  if (!activeEpisode || activeEpisode.isRadio) return;
-  if (!activeMedia.duration || !isFinite(activeMedia.duration)) return;
-  const rect = e.currentTarget.getBoundingClientRect();
-  const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-  activeMedia.currentTime = ratio * activeMedia.duration;
-});
-
 function setSpeed(rate) {
-  currentSpeed = rate;
-  try { localStorage.setItem(SPEED_KEY, String(rate)); } catch(e) {}
   audio.playbackRate = rate;
   video.playbackRate = rate;
   document.querySelectorAll('.speed-btn').forEach(btn => {
@@ -2442,10 +1957,6 @@ setupSeekButtons();
 
 function findEpisodeElement(ep) {
   const items = document.querySelectorAll('.episode-item');
-  for (const el of items) {
-    if (ep.url && el.dataset.epUrl === ep.url) return el;
-  }
-  // Repli : correspondance par titre (anciennes vues sans dataset)
   for (const el of items) {
     if (el.querySelector('.ep-title')?.textContent === ep.title) return el;
   }
@@ -2770,7 +2281,7 @@ async function addDiscoveredPodcast(idx) {
     <input class="modal-input" id="discover-name" value="${escapeAttr(name)}" />`;
   document.getElementById('modal-actions').innerHTML = `
     <button class="btn-cancel" onclick="showDiscoverModal()">← Retour</button>
-    <button class="btn-ok" onclick="confirmAddDiscovered('${escapeJsAttr(feedUrl)}')">Ajouter</button>`;
+    <button class="btn-ok" onclick="confirmAddDiscovered('${escapeAttr(feedUrl)}')">Ajouter</button>`;
 }
 
 function confirmAddDiscovered(feedUrl) {
@@ -2801,18 +2312,11 @@ function showSettingsModal() {
     <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="exportData()">📥 Exporter (JSON)</button>
     <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="document.getElementById('import-file').click()">📤 Importer un JSON</button>
     <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importData(event)" />
-    <div class="modal-label">Abonnements podcasts (OPML)</div>
-    <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="exportOPML()">📡 Exporter en OPML</button>
-    <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="document.getElementById('import-opml').click()">📡 Importer un OPML</button>
-    <input type="file" id="import-opml" accept=".opml,.xml" style="display:none;" onchange="importOPML(event)" />
-    <div style="font-size:11px;color:var(--text3);margin:-2px 0 10px;line-height:1.5;">L'OPML est le format standard d'échange d'abonnements entre applications de podcasts (AntennaPod, Pocket Casts…).</div>
-    <div class="modal-label">Maintenance</div>
-    <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="closeModal();showVerify()">🩺 Vérifier les podcasts</button>
     <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="clearAppCache()">🧹 Vider le cache (sans perdre mes données)</button>
     <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="if(confirm('Vider l\\'historique ?')){localStorage.removeItem(HISTORY_KEY);location.reload();}">🗑 Vider l'historique</button>
     <button class="btn-danger" style="width:100%;" onclick="if(confirm('Tout réinitialiser ?')){localStorage.clear();location.reload();}">⚠ Tout réinitialiser</button>
     <div class="modal-label" style="margin-top:14px;">À propos</div>
-    <div style="font-size:11px;color:var(--text3);font-family:var(--font-mono);line-height:1.6;">MediaStream v2.2<br>Proxy : Cloudflare Workers<br>© Christophe Soulas, 2026</div>`;
+    <div style="font-size:11px;color:var(--text3);font-family:var(--font-mono);line-height:1.6;">MediaStream v2.1<br>Proxy : Cloudflare Workers<br>© Christophe Soulas, 2026</div>`;
   document.getElementById('modal-actions').innerHTML = `<button class="btn-cancel" onclick="closeModal()">Fermer</button>`;
   document.getElementById('modal').style.display = 'flex';
 }
@@ -2838,7 +2342,6 @@ async function clearAppCache() {
       'mediastream_audiobook_cache_v1',
       'mediastream_audiobook_preload_progress_v1',
       'mediastream_audiobook_preload_progress_v2',
-      FEED_CACHE_KEY,
     ];
     keysToClean.forEach(k => { try { localStorage.removeItem(k); } catch(e) {} });
     // On nettoie aussi toute clé de cache audio-livres versionnée
@@ -2849,7 +2352,7 @@ async function clearAppCache() {
       }
     }
     alert('Cache vidé. L\'application va se recharger.');
-    location.reload();
+    location.reload(true);
   } catch(e) {
     alert('Erreur lors du nettoyage : ' + e.message);
   }
@@ -2980,7 +2483,6 @@ async function exportData() {
     positions: getPositions(),
     radioFavorites: getRadioFavorites(),
     queue: getQueue(),
-    readOverrides: getReadOverrides(),
   };
   const json = JSON.stringify(data, null, 2);
   const filename = 'mediastream-' + new Date().toISOString().slice(0,10) + '.json';
@@ -3021,87 +2523,19 @@ function importData(e) {
     try {
       const data = JSON.parse(ev.target.result);
       if (Array.isArray(data)) { folders = data; } // ancien format
-      else if (data && typeof data === 'object') {
-        if (Array.isArray(data.folders)) folders = data.folders;
-        if (Array.isArray(data.driveFolders)) driveFolders = data.driveFolders;
-        if (Array.isArray(data.history)) localStorage.setItem(HISTORY_KEY, JSON.stringify(data.history));
-        if (data.positions && typeof data.positions === 'object') localStorage.setItem(POSITION_KEY, JSON.stringify(data.positions));
-        if (data.radioFavorites && typeof data.radioFavorites === 'object') localStorage.setItem(RADIO_FAVORITES_KEY, JSON.stringify(data.radioFavorites));
-        if (Array.isArray(data.queue)) localStorage.setItem(QUEUE_KEY, JSON.stringify(data.queue));
-        if (data.readOverrides && typeof data.readOverrides === 'object') localStorage.setItem(READ_OVERRIDE_KEY, JSON.stringify(data.readOverrides));
-        _positionsCache = null; // invalide les caches RAM
-        _readCache = null;
-      } else {
-        throw new Error('Format de fichier non reconnu');
+      else {
+        if (data.folders) folders = data.folders;
+        if (data.driveFolders) driveFolders = data.driveFolders;
+        if (data.history) localStorage.setItem(HISTORY_KEY, JSON.stringify(data.history));
+        if (data.positions) localStorage.setItem(POSITION_KEY, JSON.stringify(data.positions));
+        if (data.radioFavorites) localStorage.setItem(RADIO_FAVORITES_KEY, JSON.stringify(data.radioFavorites));
+        if (data.queue) localStorage.setItem(QUEUE_KEY, JSON.stringify(data.queue));
       }
       saveData(); closeModal(); renderSidebar();
       alert('Importation réussie.');
     } catch(err) { alert('Erreur : ' + err.message); }
   };
   reader.readAsText(file);
-}
-
-// ─── OPML : format standard d'échange d'abonnements entre apps de podcasts ───
-function exportOPML() {
-  const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  let body = '';
-  folders.forEach(f => {
-    if (!f.feeds.length) return;
-    body += `    <outline text="${esc(f.name)}" title="${esc(f.name)}">\n`;
-    f.feeds.forEach(fd => {
-      body += `      <outline type="rss" text="${esc(fd.name)}" title="${esc(fd.name)}" xmlUrl="${esc(fd.url)}"/>\n`;
-    });
-    body += `    </outline>\n`;
-  });
-  const opml = `<?xml version="1.0" encoding="UTF-8"?>\n<opml version="2.0">\n  <head>\n    <title>Abonnements MediaStream</title>\n    <dateCreated>${new Date().toUTCString()}</dateCreated>\n  </head>\n  <body>\n${body}  </body>\n</opml>`;
-  const blob = new Blob([opml], { type: 'text/x-opml' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'mediastream-' + new Date().toISOString().slice(0,10) + '.opml';
-  a.style.display = 'none';
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
-  toast('📡 OPML exporté');
-}
-
-function importOPML(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => {
-    try {
-      const xml = new DOMParser().parseFromString(ev.target.result, 'application/xml');
-      if (xml.querySelector('parsererror')) throw new Error('Fichier OPML illisible');
-      let added = 0, skipped = 0;
-      xml.querySelectorAll('outline[xmlUrl]').forEach(node => {
-        const url = node.getAttribute('xmlUrl');
-        if (!url) return;
-        const name = node.getAttribute('title') || node.getAttribute('text') || url;
-        // Le dossier de destination = l'outline parent (catégorie), sinon "Importés"
-        let parentName = 'Importés';
-        const p = node.parentElement;
-        if (p && p.tagName.toLowerCase() === 'outline' && !p.getAttribute('xmlUrl')) {
-          parentName = p.getAttribute('title') || p.getAttribute('text') || parentName;
-        }
-        // Doublon (toutes catégories confondues) : ignoré
-        if (folders.some(f => f.feeds.some(fd => fd.url === url))) { skipped++; return; }
-        let folder = folders.find(f => f.name === parentName);
-        if (!folder) {
-          folder = { id: 'folder_' + Date.now() + '_' + folders.length, name: parentName, icon: '📂', feeds: [] };
-          folders.push(folder);
-        }
-        folder.feeds.push({ name, url });
-        unmarkFeedDeleted(url);
-        added++;
-      });
-      saveData(); renderSidebar(); closeModal();
-      alert(`Import OPML : ${added} podcast(s) ajouté(s)` + (skipped ? `, ${skipped} doublon(s) ignoré(s)` : '') + '.');
-    } catch(err) { alert('Erreur : ' + err.message); }
-  };
-  reader.readAsText(file);
-  e.target.value = ''; // permet de réimporter le même fichier
 }
 
 // ═══════════════════════════════════════════
@@ -3158,24 +2592,7 @@ function formatDuration(d) {
 try { localStorage.removeItem('mediastream_audiobook_preload_progress_v1'); } catch(e) {}
 try { localStorage.removeItem('mediastream_audiobook_preload_progress_v2'); } catch(e) {}
 
-// Sauvegarde immédiate de la position quand l'app passe en arrière-plan ou se ferme
-function flushPosition() {
-  if (!activeEpisode || activeEpisode.isRadio || !activeMedia) return;
-  const isShortDriveFile = activeEpisode.isDrive && activeMedia.duration && activeMedia.duration < 600;
-  if (isShortDriveFile) return;
-  if (activeMedia.currentTime > 5) savePosition(activeEpisode.url, activeMedia.currentTime);
-}
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') flushPosition();
-});
-window.addEventListener('pagehide', flushPosition);
-
 loadData();
-// Restaure la vitesse de lecture mémorisée
-try {
-  const s = parseFloat(localStorage.getItem(SPEED_KEY));
-  if ([1, 1.25, 1.5, 2].includes(s)) setSpeed(s);
-} catch(e) {}
 showRecents();
 
 // PRÉ-CHARGEMENT AUTOMATIQUE DÉSACTIVÉ :
