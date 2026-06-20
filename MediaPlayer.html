@@ -1407,7 +1407,7 @@ async function loadFeed(feed) {
   }
 
   const items = xml.querySelectorAll('item');
-  return Array.from(items).slice(0, 10).map(item => {
+  return Array.from(items).slice(0, 50).map(item => {
     const enc = item.querySelector('enclosure');
     let duration = '';
     const durEl = item.getElementsByTagName('itunes:duration')[0];
