@@ -442,12 +442,38 @@ function addToHistory(ep) {
 // ═══════════════════════════════════════════
 // FILE D'ATTENTE
 // ═══════════════════════════════════════════
+// Copie en mémoire vive de la file : filet de sécurité si localStorage a un hoquet
+let queueCache = null;
+
 function getQueue() {
-  try { return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]'); }
-  catch(e) { return []; }
+  try {
+    const raw = localStorage.getItem(QUEUE_KEY);
+    if (raw === null) {
+      // Clé absente : soit vraiment vide, soit jamais écrite. On se fie au cache mémoire si présent.
+      return queueCache !== null ? queueCache : [];
+    }
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      queueCache = parsed; // on garde une copie saine
+      return parsed;
+    }
+    // Donnée corrompue (pas un tableau) : on ne renvoie PAS vide, on garde le cache mémoire
+    return queueCache !== null ? queueCache : [];
+  } catch(e) {
+    // Échec de lecture/parse : surtout NE PAS renvoyer [] (ça écraserait la file).
+    // On renvoie la dernière version connue en mémoire.
+    return queueCache !== null ? queueCache : [];
+  }
 }
 function saveQueue(q) {
-  try { localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); } catch(e) {}
+  if (!Array.isArray(q)) return; // sécurité : on n'enregistre jamais autre chose qu'un tableau
+  queueCache = q; // met à jour le filet de sécurité en mémoire
+  try {
+    localStorage.setItem(QUEUE_KEY, JSON.stringify(q));
+  } catch(e) {
+    // Stockage plein : on avertit au lieu d'échouer en silence
+    toast('⚠️ File non sauvegardée (stockage plein)');
+  }
   // Met à jour le compteur dans la sidebar
   renderSidebar();
 }
@@ -2593,6 +2619,14 @@ try { localStorage.removeItem('mediastream_audiobook_preload_progress_v1'); } ca
 try { localStorage.removeItem('mediastream_audiobook_preload_progress_v2'); } catch(e) {}
 
 loadData();
+// Initialise le filet de sécurité de la file d'attente avec la vraie valeur du stockage
+try {
+  const rawQ = localStorage.getItem(QUEUE_KEY);
+  if (rawQ !== null) {
+    const parsedQ = JSON.parse(rawQ);
+    if (Array.isArray(parsedQ)) queueCache = parsedQ;
+  }
+} catch(e) {}
 showRecents();
 
 // PRÉ-CHARGEMENT AUTOMATIQUE DÉSACTIVÉ :
