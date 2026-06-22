@@ -449,25 +449,25 @@ function getQueue() {
   try {
     const raw = localStorage.getItem(QUEUE_KEY);
     if (raw === null) {
-      // Clé absente : soit vraiment vide, soit jamais écrite. On se fie au cache mémoire si présent.
-      return queueCache !== null ? queueCache : [];
+      return queueCache !== null ? queueCache.slice() : [];
     }
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
       queueCache = parsed; // on garde une copie saine
-      return parsed;
+      return parsed.slice(); // ← renvoie une COPIE (évite la corruption par référence partagée)
     }
-    // Donnée corrompue (pas un tableau) : on ne renvoie PAS vide, on garde le cache mémoire
-    return queueCache !== null ? queueCache : [];
+    return queueCache !== null ? queueCache.slice() : [];
   } catch(e) {
-    // Échec de lecture/parse : surtout NE PAS renvoyer [] (ça écraserait la file).
-    // On renvoie la dernière version connue en mémoire.
-    return queueCache !== null ? queueCache : [];
+    return queueCache !== null ? queueCache.slice() : [];
   }
 }
 function saveQueue(q) {
   if (!Array.isArray(q)) return; // sécurité : on n'enregistre jamais autre chose qu'un tableau
-  queueCache = q; // met à jour le filet de sécurité en mémoire
+  // DIAGNOSTIC : trace quand la file passe de "remplie" à "vide" (pour traquer le bug d'effacement)
+  if (queueCache && queueCache.length > 0 && q.length === 0) {
+    console.warn('[FILE VIDÉE] La file passe de ' + queueCache.length + ' à 0 éléments. Pile d\'appel :', new Error().stack);
+  }
+  queueCache = q.slice(); // met à jour le filet de sécurité en mémoire (COPIE, pas la référence)
   try {
     localStorage.setItem(QUEUE_KEY, JSON.stringify(q));
   } catch(e) {
@@ -2624,7 +2624,7 @@ try {
   const rawQ = localStorage.getItem(QUEUE_KEY);
   if (rawQ !== null) {
     const parsedQ = JSON.parse(rawQ);
-    if (Array.isArray(parsedQ)) queueCache = parsedQ;
+    if (Array.isArray(parsedQ)) queueCache = parsedQ.slice();
   }
 } catch(e) {}
 showRecents();
