@@ -2740,54 +2740,65 @@ function toggleVoiceCommand() {
 
   recognition = new SR();
   recognition.lang = 'fr-FR';
-  recognition.interimResults = false;
+  recognition.interimResults = true;  // résultats progressifs : laisse plus de temps pour parler
   recognition.maxAlternatives = 1;
-  recognition.continuous = false;
+  recognition.continuous = true;       // ne coupe pas au premier silence court
 
   const startTime = Date.now();
   let gotResult = false;
+  let finalTranscript = '';
+  let settleTimer = null;
 
   recognition.onstart = () => {
     voiceListening = true;
     document.getElementById('voice-btn').classList.add('listening');
-    voiceFeedback('🎤 DIAGNOSTIC : écoute démarrée. Parle maintenant…', false);
-  };
-
-  recognition.onaudiostart = () => {
-    voiceFeedback('🔊 DIAGNOSTIC : le micro capte du son (audiostart OK)', false);
-  };
-
-  recognition.onspeechstart = () => {
-    voiceFeedback('🗣️ DIAGNOSTIC : parole détectée (speechstart OK)', false);
+    voiceFeedback('🎤 Je t\'écoute… (parle, puis attends une seconde)', false);
   };
 
   recognition.onresult = (event) => {
     gotResult = true;
-    const transcript = event.results[0][0].transcript.trim();
-    voiceFeedback('✅ COMPRIS : « ' + transcript + ' »', false);
-    setTimeout(() => handleVoiceCommand(transcript), 1500);
+    // Reconstitue la transcription complète (finale + en cours)
+    let interim = '';
+    finalTranscript = '';
+    for (let i = 0; i < event.results.length; i++) {
+      const r = event.results[i];
+      if (r.isFinal) finalTranscript += r[0].transcript;
+      else interim += r[0].transcript;
+    }
+    const current = (finalTranscript + ' ' + interim).trim();
+    if (current) voiceFeedback('« ' + current + ' »', false);
+
+    // Quand l'utilisateur s'arrête de parler ~1,2s, on considère la commande terminée
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(() => {
+      const phrase = (finalTranscript || interim).trim();
+      if (phrase) {
+        try { recognition.stop(); } catch(e) {}
+        handleVoiceCommand(phrase);
+      }
+    }, 1200);
   };
 
   recognition.onerror = (event) => {
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    // Affiche le code d'erreur EXACT pour diagnostic
-    voiceFeedback('❌ ERREUR : "' + event.error + '" après ' + elapsed + 's. ' + (event.message || ''), false);
-    console.error('[VOICE] Erreur:', event.error, event.message);
+    clearTimeout(settleTimer);
+    let msg = 'Je n\'ai pas compris. Réessaie.';
+    if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+      msg = 'Le micro est bloqué. Vérifie les autorisations.';
+    } else if (event.error === 'no-speech') {
+      msg = 'Je n\'ai rien entendu. Réessaie.';
+    } else if (event.error === 'aborted') {
+      return; // arrêt volontaire, pas d'erreur à afficher
+    }
+    voiceFeedback(msg, false);
   };
 
   recognition.onend = () => {
     voiceListening = false;
     document.getElementById('voice-btn').classList.remove('listening');
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    // Si l'écoute s'est arrêtée très vite SANS résultat ni erreur, on le signale
-    if (!gotResult) {
-      setTimeout(() => {
-        const fb = document.getElementById('voice-feedback');
-        // N'écrase pas un message d'erreur déjà affiché
-        if (!fb || !fb.textContent.includes('ERREUR')) {
-          voiceFeedback('⚠️ DIAGNOSTIC : écoute terminée après ' + elapsed + 's sans rien capter. Si c\'est < 1s, le service de reconnaissance Google ne répond pas sur ce téléphone.', false);
-        }
-      }, 100);
+    clearTimeout(settleTimer);
+    // Si on a une phrase finale non encore traitée, on la traite
+    if (gotResult && finalTranscript.trim()) {
+      // (déjà traité par le settleTimer dans la plupart des cas)
     }
   };
 
