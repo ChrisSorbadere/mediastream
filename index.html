@@ -118,6 +118,33 @@
   .control-btn.active { background: var(--accent2); color: white; border-color: var(--accent); }
   .control-btn.icon-only { padding: 6px 10px; }
   .control-spacer { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+  /* Bouton micro flottant pour commande vocale */
+  #voice-btn {
+    position: fixed; right: 18px; bottom: 150px; z-index: 500;
+    width: 60px; height: 60px; border-radius: 50%;
+    background: var(--accent); color: #fff; border: none;
+    font-size: 26px; cursor: pointer;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.15s, background 0.2s;
+  }
+  #voice-btn:active { transform: scale(0.92); }
+  #voice-btn.listening {
+    background: var(--red);
+    animation: voicePulse 1.2s ease-in-out infinite;
+  }
+  @keyframes voicePulse {
+    0%, 100% { box-shadow: 0 4px 16px rgba(248,81,73,0.5); }
+    50% { box-shadow: 0 4px 28px rgba(248,81,73,0.9); }
+  }
+  /* Bannière de retour de la commande vocale */
+  #voice-feedback {
+    position: fixed; left: 50%; bottom: 230px; transform: translateX(-50%);
+    background: var(--bg4); color: var(--text); padding: 12px 20px;
+    border-radius: 14px; font-size: 15px; z-index: 600;
+    border: 1px solid var(--border); box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    max-width: 85%; text-align: center; display: none;
+  }
 
   .speed-bar { display: flex; align-items: center; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
   .speed-label { font-size: 11px; color: var(--text3); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; margin-right: 4px; }
@@ -195,6 +222,9 @@
 
 <div class="main">
   <div class="overlay-bg" id="overlay-bg" onclick="toggleSidebar()"></div>
+
+  <!-- Bouton micro flottant pour commande vocale (conduite) -->
+  <button id="voice-btn" onclick="toggleVoiceCommand()" title="Commande vocale" aria-label="Commande vocale">🎤</button>
   <div class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <span class="sidebar-title">Dossiers</span>
@@ -2655,6 +2685,197 @@ function formatDuration(d) {
   return d;
 }
 
+
+// ═══════════════════════════════════════════
+// COMMANDE VOCALE (mains-libres, conduite)
+// ═══════════════════════════════════════════
+let recognition = null;
+let voiceListening = false;
+
+function voiceFeedback(msg, speak = true) {
+  let el = document.getElementById('voice-feedback');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'voice-feedback';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.display = 'block';
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => { el.style.display = 'none'; }, 4000);
+  // Retour vocal parlé (utile au volant, sans regarder l'écran)
+  if (speak && 'speechSynthesis' in window) {
+    try {
+      const u = new SpeechSynthesisUtterance(msg);
+      u.lang = 'fr-FR';
+      u.rate = 1.05;
+      speechSynthesis.cancel();
+      speechSynthesis.speak(u);
+    } catch(e) {}
+  }
+}
+
+function toggleVoiceCommand() {
+  // Vérifie la disponibilité de la reconnaissance vocale
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    voiceFeedback('La reconnaissance vocale n\'est pas disponible sur ce navigateur.', false);
+    return;
+  }
+
+  // Si déjà en écoute, on arrête
+  if (voiceListening && recognition) {
+    recognition.stop();
+    return;
+  }
+
+  recognition = new SR();
+  recognition.lang = 'fr-FR';
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+  recognition.continuous = false;
+
+  recognition.onstart = () => {
+    voiceListening = true;
+    document.getElementById('voice-btn').classList.add('listening');
+    voiceFeedback('🎤 Je t\'écoute…', false);
+  };
+
+  recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript.trim();
+    voiceFeedback('« ' + transcript + ' »', false);
+    setTimeout(() => handleVoiceCommand(transcript), 300);
+  };
+
+  recognition.onerror = (event) => {
+    let msg = 'Je n\'ai pas compris.';
+    if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+      msg = 'Autorise l\'accès au micro pour utiliser la commande vocale.';
+    } else if (event.error === 'no-speech') {
+      msg = 'Je n\'ai rien entendu. Réessaie.';
+    }
+    voiceFeedback(msg, false);
+  };
+
+  recognition.onend = () => {
+    voiceListening = false;
+    document.getElementById('voice-btn').classList.remove('listening');
+  };
+
+  try { recognition.start(); }
+  catch(e) { voiceFeedback('Erreur micro : ' + e.message, false); }
+}
+
+// Normalise une chaîne (minuscules, sans accents) pour comparer les mots
+function normalizeText(s) {
+  return String(s || '').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // retire les accents
+    .trim();
+}
+
+// Analyse la phrase et exécute la commande correspondante
+function handleVoiceCommand(transcript) {
+  const cmd = normalizeText(transcript);
+
+  // ─── Contrôles de lecture simples (avec de nombreux synonymes) ───
+
+  // PAUSE / ARRÊT
+  if (/\b(pause|stop|arrete|arreter|arretes|stoppe|stopper|coupe|couper|silence|chut|tais|suspend|suspends|attends|attend|halte)\b/.test(cmd)) {
+    if (activeMedia && !activeMedia.paused) { activeMedia.pause(); voiceFeedback('Pause'); }
+    else voiceFeedback('Rien en lecture');
+    return;
+  }
+
+  // REPRENDRE / LECTURE (sans mention de dossier ni de "suivant/précédent")
+  if (/\b(reprend|reprends|reprendre|play|lecture|continue|continuer|continues|joue|jouer|relance|relancer|repars|repart|vas-y|vasy|go|demarre|demarrer|lance la lecture|remets|remet|remettre|encore)\b/.test(cmd)
+      && !cmd.includes('dossier') && !/\b(suivant|prochain|precedent|avant)\b/.test(cmd)) {
+    if (activeMedia && activeMedia.paused) { activeMedia.play(); voiceFeedback('Lecture'); return; }
+  }
+
+  // SUIVANT
+  if (/\b(suivant|suivante|suivants|prochain|prochaine|apres|d'apres|dapres|avance|avancer|saute|sauter|passe|passer|change|suite|autre|en avant)\b/.test(cmd)
+      && !cmd.includes('dossier')) {
+    playNext(); voiceFeedback('Épisode suivant'); return;
+  }
+
+  // PRÉCÉDENT / RECOMMENCER
+  if (/\b(precedent|precedente|precedents|avant|davant|retour|retourne|arriere|en arriere|recule|reculer|recommence|recommencer|redemarre|reviens|revenir|reprends au debut|debut|depuis le debut|d'avant)\b/.test(cmd)
+      && !cmd.includes('dossier')) {
+    playPrevious(); voiceFeedback('Épisode précédent'); return;
+  }
+
+  // VOLUME +
+  if (/\b(plus fort|monte|monter|montes|augmente|augmenter|augmentes|plus de son|plus de volume|fort|plus haut|hausse|amplifie|j'entends rien|jentends rien|trop bas|pas assez fort)\b/.test(cmd)) {
+    if (activeMedia) { activeMedia.volume = Math.min(1, activeMedia.volume + 0.2); voiceFeedback('Volume augmenté'); }
+    return;
+  }
+
+  // VOLUME -
+  if (/\b(moins fort|baisse|baisser|baisses|diminue|diminuer|diminues|moins de son|moins de volume|doucement|plus bas|reduis|reduire|trop fort|moins haut|attenue)\b/.test(cmd)) {
+    if (activeMedia) { activeMedia.volume = Math.max(0, activeMedia.volume - 0.2); voiceFeedback('Volume baissé'); }
+    return;
+  }
+
+  // FILE D'ATTENTE
+  if (/\b(file|attente|liste|playlist|file d'attente)\b/.test(cmd)
+      && /\b(lis|lire|lance|lancer|joue|jouer|ouvre|ouvrir|met|mets|mettre|demarre|passe)\b/.test(cmd)) {
+    const q = getQueue();
+    if (q.length) { playFromQueue(0); voiceFeedback('Lecture de la file d\'attente'); }
+    else voiceFeedback('La file d\'attente est vide');
+    return;
+  }
+
+  // ─── Ouvrir un dossier et lancer la lecture ───
+  // On cherche un nom de dossier (podcast ou Drive) mentionné dans la phrase
+  const allFolders = [
+    ...folders.map(f => ({ type: 'podcast', name: f.name, id: f.id, obj: f })),
+    ...(driveFolders || []).map(f => ({ type: 'drive', name: f.name, id: f.id, obj: f })),
+  ];
+
+  // Cherche le dossier dont le nom (sans emoji ni accent) est contenu dans la commande
+  let best = null;
+  for (const folder of allFolders) {
+    // Retire les emojis et accents du nom du dossier pour la comparaison
+    const cleanName = normalizeText(folder.name.replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{1F1E6}-\u{1F1FF}]/gu, ''));
+    if (cleanName && cmd.includes(cleanName)) {
+      // On garde le nom le plus long trouvé (le plus précis)
+      if (!best || cleanName.length > best.matchLen) {
+        best = { ...folder, matchLen: cleanName.length };
+      }
+    }
+  }
+
+  if (best) {
+    voiceFeedback('J\'ouvre ' + best.name.replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{1F1E6}-\u{1F1FF}]/gu, '').trim() + ' et je lance la lecture');
+    openFolderAndPlay(best);
+    return;
+  }
+
+  // Aucune commande reconnue
+  voiceFeedback('Je n\'ai pas compris. Essaie : "dossier Histoire", "pause", "suivant", "plus fort".');
+}
+
+// Ouvre un dossier (podcast ou Drive) et lance la lecture du premier élément
+async function openFolderAndPlay(folderInfo) {
+  if (folderInfo.type === 'drive') {
+    await loadDriveFolder(folderInfo.id, folderInfo.name);
+    currentView = { type: 'drive', id: folderInfo.id, name: folderInfo.name };
+  } else {
+    // Setup vue dossier podcast
+    currentView = { type: 'folder', id: folderInfo.id, folder: folderInfo.obj };
+    closeSidebar();
+    renderSidebar();
+    document.getElementById('content-title').textContent = folderInfo.name;
+    document.getElementById('btn-add-feed').style.display = 'inline-block';
+    await loadFolder(folderInfo.obj);
+  }
+  // Lance le premier épisode du dossier
+  if (currentEpisodes && currentEpisodes.length) {
+    playEpisode(currentEpisodes[0], findEpisodeElement(currentEpisodes[0]));
+  } else {
+    voiceFeedback('Ce dossier est vide ou n\'a pas pu être chargé');
+  }
+}
 
 // ═══════════════════════════════════════════
 // INIT
