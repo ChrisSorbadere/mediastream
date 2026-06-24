@@ -1853,11 +1853,20 @@ function playEpisode(ep, el, fromQueue = false) {
   activeMedia.addEventListener('loadedmetadata', onceLoaded, { once: true });
 
   if ('mediaSession' in navigator) {
-    navigator.mediaSession.metadata = new MediaMetadata({
+    const metaInit = {
       title: ep.title, artist: ep.feed || '', album: 'MediaStream',
-    });
-    navigator.mediaSession.setActionHandler('play', () => activeMedia.play());
-    navigator.mediaSession.setActionHandler('pause', () => activeMedia.pause());
+    };
+    // Ajoute la pochette (affichée sur l'écran verrouillé et l'écran de la voiture) si disponible
+    if (ep.image) {
+      metaInit.artwork = [
+        { src: ep.image, sizes: '96x96', type: 'image/png' },
+        { src: ep.image, sizes: '256x256', type: 'image/png' },
+        { src: ep.image, sizes: '512x512', type: 'image/png' },
+      ];
+    }
+    navigator.mediaSession.metadata = new MediaMetadata(metaInit);
+    navigator.mediaSession.setActionHandler('play', () => { activeMedia.play(); });
+    navigator.mediaSession.setActionHandler('pause', () => { activeMedia.pause(); });
     navigator.mediaSession.setActionHandler('previoustrack', () => playPrevious());
     navigator.mediaSession.setActionHandler('nexttrack', () => playNext());
     navigator.mediaSession.setActionHandler('seekbackward', e => activeMedia.currentTime = Math.max(0, activeMedia.currentTime - (e.seekOffset||10)));
@@ -2702,7 +2711,7 @@ function voiceFeedback(msg, speak = true) {
   el.textContent = msg;
   el.style.display = 'block';
   clearTimeout(el._timer);
-  el._timer = setTimeout(() => { el.style.display = 'none'; }, 4000);
+  el._timer = setTimeout(() => { el.style.display = 'none'; }, 8000);
   // Retour vocal parlé (utile au volant, sans regarder l'écran)
   if (speak && 'speechSynthesis' in window) {
     try {
@@ -2719,7 +2728,7 @@ function toggleVoiceCommand() {
   // Vérifie la disponibilité de la reconnaissance vocale
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) {
-    voiceFeedback('La reconnaissance vocale n\'est pas disponible sur ce navigateur.', false);
+    voiceFeedback('❌ DIAGNOSTIC : SpeechRecognition absente de ce navigateur. La reconnaissance vocale n\'existe pas ici.', false);
     return;
   }
 
@@ -2735,35 +2744,58 @@ function toggleVoiceCommand() {
   recognition.maxAlternatives = 1;
   recognition.continuous = false;
 
+  const startTime = Date.now();
+  let gotResult = false;
+
   recognition.onstart = () => {
     voiceListening = true;
     document.getElementById('voice-btn').classList.add('listening');
-    voiceFeedback('🎤 Je t\'écoute…', false);
+    voiceFeedback('🎤 DIAGNOSTIC : écoute démarrée. Parle maintenant…', false);
+  };
+
+  recognition.onaudiostart = () => {
+    voiceFeedback('🔊 DIAGNOSTIC : le micro capte du son (audiostart OK)', false);
+  };
+
+  recognition.onspeechstart = () => {
+    voiceFeedback('🗣️ DIAGNOSTIC : parole détectée (speechstart OK)', false);
   };
 
   recognition.onresult = (event) => {
+    gotResult = true;
     const transcript = event.results[0][0].transcript.trim();
-    voiceFeedback('« ' + transcript + ' »', false);
-    setTimeout(() => handleVoiceCommand(transcript), 300);
+    voiceFeedback('✅ COMPRIS : « ' + transcript + ' »', false);
+    setTimeout(() => handleVoiceCommand(transcript), 1500);
   };
 
   recognition.onerror = (event) => {
-    let msg = 'Je n\'ai pas compris.';
-    if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-      msg = 'Autorise l\'accès au micro pour utiliser la commande vocale.';
-    } else if (event.error === 'no-speech') {
-      msg = 'Je n\'ai rien entendu. Réessaie.';
-    }
-    voiceFeedback(msg, false);
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    // Affiche le code d'erreur EXACT pour diagnostic
+    voiceFeedback('❌ ERREUR : "' + event.error + '" après ' + elapsed + 's. ' + (event.message || ''), false);
+    console.error('[VOICE] Erreur:', event.error, event.message);
   };
 
   recognition.onend = () => {
     voiceListening = false;
     document.getElementById('voice-btn').classList.remove('listening');
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    // Si l'écoute s'est arrêtée très vite SANS résultat ni erreur, on le signale
+    if (!gotResult) {
+      setTimeout(() => {
+        const fb = document.getElementById('voice-feedback');
+        // N'écrase pas un message d'erreur déjà affiché
+        if (!fb || !fb.textContent.includes('ERREUR')) {
+          voiceFeedback('⚠️ DIAGNOSTIC : écoute terminée après ' + elapsed + 's sans rien capter. Si c\'est < 1s, le service de reconnaissance Google ne répond pas sur ce téléphone.', false);
+        }
+      }, 100);
+    }
   };
 
-  try { recognition.start(); }
-  catch(e) { voiceFeedback('Erreur micro : ' + e.message, false); }
+  try {
+    recognition.start();
+  } catch(e) {
+    voiceFeedback('❌ ERREUR au démarrage : ' + e.message, false);
+  }
 }
 
 // Normalise une chaîne (minuscules, sans accents) pour comparer les mots
