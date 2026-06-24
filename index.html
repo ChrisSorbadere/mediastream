@@ -779,6 +779,51 @@ function showRecents() {
   badge.style.display = 'inline';
 }
 
+// Lance un épisode récent EN OUVRANT son dossier d'origine, pour que l'enchaînement continue dans ce dossier
+async function playFromRecents(ep) {
+  // Radio : pas de dossier d'origine, on lance directement
+  if (ep.isRadio || ep.type === 'radio') {
+    playEpisode(ep, null);
+    return;
+  }
+
+  // Fichier Drive : on cherche le dossier Drive d'origine par son nom
+  if (ep.isDrive) {
+    const driveFolder = (driveFolders || []).find(d => d.name === ep.folderName);
+    if (driveFolder) {
+      await loadDriveFolder(driveFolder.id, driveFolder.name);
+      currentView = { type: 'drive', id: driveFolder.id, name: driveFolder.name };
+      const match = currentEpisodes.find(e => e.url === ep.url || e.driveId === ep.driveId);
+      playEpisode(match || ep, match ? findEpisodeElement(match) : null);
+      return;
+    }
+    // Dossier introuvable : lecture simple
+    playEpisode(ep, null);
+    return;
+  }
+
+  // Podcast : on cherche le dossier contenant le flux dont vient l'épisode (via ep.feed = nom du flux)
+  const folder = folders.find(f => (f.feeds || []).some(fd => fd.name === ep.feed));
+  if (folder) {
+    // Setup de la vue dossier (sans déclencher le chargement non-attendu de selectFolder)
+    currentView = { type: 'folder', id: folder.id, folder };
+    closeSidebar();
+    renderSidebar();
+    document.getElementById('content-title').textContent = folder.name;
+    document.getElementById('btn-add-feed').style.display = 'inline-block';
+    const btnUnread = document.getElementById('btn-unread');
+    btnUnread.style.display = 'inline-block';
+    btnUnread.classList.toggle('active', unreadOnly);
+    await loadFolder(folder); // chargement attendu, pour pouvoir lancer le bon épisode ensuite
+    const match = currentEpisodes.find(e => e.url === ep.url);
+    playEpisode(match || ep, match ? findEpisodeElement(match) : null);
+    return;
+  }
+
+  // Aucun dossier trouvé : lecture simple (comportement de repli)
+  playEpisode(ep, null);
+}
+
 // ═══════════════════════════════════════════
 // VÉRIFICATION DES PODCASTS
 // ═══════════════════════════════════════════
@@ -1568,7 +1613,7 @@ function renderEpisodes(eps) {
         </div>
       </div>
       <div class="ep-actions-right">${infoBtn}${queueBtn}${removeBtn}</div>`;
-    div.onclick = () => playEpisode(ep, div);
+    div.onclick = () => isRecentsView ? playFromRecents(ep) : playEpisode(ep, div);
     list.appendChild(div);
   });
   // Si le filtre "non lus" a tout masqué
