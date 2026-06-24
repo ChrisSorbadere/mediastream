@@ -2740,9 +2740,9 @@ function toggleVoiceCommand() {
 
   recognition = new SR();
   recognition.lang = 'fr-FR';
-  recognition.interimResults = true;  // résultats progressifs : laisse plus de temps pour parler
+  recognition.interimResults = true;  // affiche ce qui est compris en direct
   recognition.maxAlternatives = 1;
-  recognition.continuous = true;       // ne coupe pas au premier silence court
+  recognition.continuous = false;      // une commande à la fois (plus fiable, pas de répétition)
 
   const startTime = Date.now();
   let gotResult = false;
@@ -2757,21 +2757,19 @@ function toggleVoiceCommand() {
 
   recognition.onresult = (event) => {
     gotResult = true;
-    // Reconstitue la transcription complète (finale + en cours)
-    let interim = '';
-    finalTranscript = '';
+    // Reconstruit la transcription complète depuis le début (évite les répétitions)
+    let full = '';
     for (let i = 0; i < event.results.length; i++) {
-      const r = event.results[i];
-      if (r.isFinal) finalTranscript += r[0].transcript;
-      else interim += r[0].transcript;
+      full += event.results[i][0].transcript;
     }
-    const current = (finalTranscript + ' ' + interim).trim();
-    if (current) voiceFeedback('« ' + current + ' »', false);
+    full = full.trim();
+    finalTranscript = full;
+    if (full) voiceFeedback('« ' + full + ' »', false);
 
-    // Quand l'utilisateur s'arrête de parler ~1,2s, on considère la commande terminée
+    // Quand l'utilisateur s'arrête de parler ~1,2s, on traite la commande
     clearTimeout(settleTimer);
     settleTimer = setTimeout(() => {
-      const phrase = (finalTranscript || interim).trim();
+      const phrase = finalTranscript.trim();
       if (phrase) {
         try { recognition.stop(); } catch(e) {}
         handleVoiceCommand(phrase);
