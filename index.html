@@ -1823,8 +1823,9 @@ function playEpisode(ep, el, fromQueue = false) {
     activeMedia = audio;
   }
 
-  // Stream : Drive direct + Radios direct + Audio-livres direct (tous CORS-ok), tout le reste via proxy
-  activeMedia.src = (ep.isDrive || ep.isRadio) ? ep.url : (PROXY + encodeURIComponent(ep.url));
+  // Stream : Radios en direct (flux live). Drive + podcasts passent par le proxy
+  // (le Drive via proxy évite de saturer le quota de l'API Google Drive directe).
+  activeMedia.src = ep.isRadio ? ep.url : (PROXY + encodeURIComponent(ep.url));
 
   document.getElementById('player-title').textContent = ep.title;
   document.getElementById('player-sub').textContent = ep.feed || '';
@@ -1937,9 +1938,46 @@ function playEpisode(ep, el, fromQueue = false) {
   m.addEventListener('error', () => {
     if (m !== activeMedia || !activeEpisode) return;
     const status = document.getElementById('player-status');
-    status.className = 'player-status idle';
-    status.textContent = '⚠ ERREUR';
-    status.style.color = 'var(--red)';
+
+    // Reprise automatique : une coupure réseau pendant le streaming ne doit pas tout arrêter.
+    // On retient la position, on recharge le fichier et on reprend là où on en était.
+    const ep = activeEpisode;
+    if (!ep._retryCount) ep._retryCount = 0;
+    const wasAt = m.currentTime || getPosition(ep.url) || 0;
+
+    if (ep._retryCount < 3) {
+      ep._retryCount++;
+      status.className = 'player-status';
+      status.textContent = '⟳ RECONNEXION';
+      status.style.color = 'var(--accent)';
+      // Petite attente puis on recharge la source et on reprend à la position
+      setTimeout(() => {
+        if (m !== activeMedia || activeEpisode !== ep) return;
+        const src = m.src;
+        m.load();              // recharge le flux
+        m.src = src;
+        const resume = () => {
+          // Reprend là où on s'était arrêté
+          if (wasAt > 0 && wasAt < (m.duration || Infinity)) {
+            try { m.currentTime = wasAt; } catch(e) {}
+          }
+          m.play().catch(() => {});
+          m.removeEventListener('loadedmetadata', resume);
+        };
+        m.addEventListener('loadedmetadata', resume, { once: true });
+        m.load();
+      }, 1200 * ep._retryCount); // attente croissante : 1,2s, 2,4s, 3,6s
+    } else {
+      // Après 3 tentatives infructueuses, on abandonne et on l'indique
+      status.className = 'player-status idle';
+      status.textContent = '⚠ ERREUR';
+      status.style.color = 'var(--red)';
+    }
+  });
+
+  // À chaque lecture qui repart normalement, on remet le compteur de tentatives à zéro
+  m.addEventListener('playing', () => {
+    if (m === activeMedia && activeEpisode) activeEpisode._retryCount = 0;
   });
   m.addEventListener('waiting', () => {
     if (m !== activeMedia) return;
