@@ -1823,9 +1823,8 @@ function playEpisode(ep, el, fromQueue = false) {
     activeMedia = audio;
   }
 
-  // Stream : Radios en direct (flux live). Drive + podcasts passent par le proxy
-  // (le Drive via proxy évite de saturer le quota de l'API Google Drive directe).
-  activeMedia.src = ep.isRadio ? ep.url : (PROXY + encodeURIComponent(ep.url));
+  // Stream : Drive direct + Radios direct (CORS-ok), podcasts via proxy
+  activeMedia.src = (ep.isDrive || ep.isRadio) ? ep.url : (PROXY + encodeURIComponent(ep.url));
 
   document.getElementById('player-title').textContent = ep.title;
   document.getElementById('player-sub').textContent = ep.feed || '';
