@@ -1704,24 +1704,10 @@ function selectDrive(idx) {
   loadDriveFolder(d.id, d.name);
 }
 
-// Cache en mémoire des listes de fichiers Drive (évite de relister à chaque visite d'un dossier)
-const driveFolderCache = {};
-
 async function loadDriveFolder(folderId, folderName) {
   const list = document.getElementById('episodes-list');
   list.innerHTML = `<div class="loading-text">Chargement Drive<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>`;
   currentEpisodes = [];
-
-  // Si on a déjà chargé ce dossier dans cette session, on réutilise le cache (0 requête API)
-  if (driveFolderCache[folderId]) {
-    const eps = driveFolderCache[folderId];
-    currentEpisodes = eps;
-    renderEpisodes(eps);
-    const badge = document.getElementById('content-badge');
-    badge.textContent = eps.length + ' fichiers';
-    badge.style.display = 'inline';
-    return;
-  }
 
   try {
     const url = `https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents+and+trashed=false&fields=files(id,name,mimeType,size)&orderBy=name&pageSize=1000&key=${DRIVE_API_KEY}`;
@@ -1738,8 +1724,7 @@ async function loadDriveFolder(folderId, folderName) {
     const eps = files.map(f => ({
       title: f.name,
       date: '',
-      // Endpoint de téléchargement direct : consomme moins de requêtes que l'API googleapis pour le streaming
-      url: `https://drive.usercontent.google.com/download?id=${f.id}&export=download`,
+      url: `https://www.googleapis.com/drive/v3/files/${f.id}?alt=media&key=${DRIVE_API_KEY}`,
       feed: folderName || 'Google Drive',
       type: f.mimeType.includes('video') ? 'video' : 'drive',
       mimeType: f.mimeType,
@@ -1747,7 +1732,6 @@ async function loadDriveFolder(folderId, folderName) {
       isDrive: true,
       folderName: folderName || '',
     }));
-    driveFolderCache[folderId] = eps; // mémorise pour les prochaines visites
     currentEpisodes = eps;
     renderEpisodes(eps);
 
