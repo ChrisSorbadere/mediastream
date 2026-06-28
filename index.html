@@ -269,7 +269,7 @@
     <div class="control-spacer"></div>
     <button class="control-btn icon-only" id="btn-audio-only" onclick="toggleAudioOnly()" title="Audio seul (continue en arrière-plan)" style="display:none;">🎧</button>
     <button class="control-btn icon-only" id="btn-shuffle" onclick="toggleShuffle()" title="Lecture aléatoire">🔀</button>
-    <button class="control-btn icon-only" id="btn-loop" onclick="toggleLoop()" title="Boucle">🔁</button>
+    <button class="control-btn icon-only" id="btn-restart" onclick="restartTrack()" title="Revenir au début">⏮</button>
     <button class="control-btn icon-only" id="btn-sleep" onclick="showSleepModal()" title="Minuteur de sommeil">💤</button>
     <div class="control-spacer"></div>
     <button class="speed-btn active" onclick="setSpeed(1)">×1</button>
@@ -1823,6 +1823,13 @@ async function loadDriveFolder(folderId, folderName) {
     currentEpisodes = eps;
     renderEpisodes(eps);
 
+    // Active automatiquement la lecture aléatoire à l'ouverture d'un dossier Drive
+    if (!shuffleMode) {
+      shuffleMode = true;
+      const sb = document.getElementById('btn-shuffle');
+      if (sb) sb.classList.add('active');
+    }
+
     const badge = document.getElementById('content-badge');
     badge.textContent = eps.length + ' fichiers';
     badge.style.display = 'inline';
@@ -2209,14 +2216,12 @@ function toggleShuffle() {
   document.getElementById('btn-shuffle').classList.toggle('active', shuffleMode);
 }
 
-function toggleLoop() {
-  if (!loopMode) loopMode = 'all';
-  else if (loopMode === 'all') loopMode = 'one';
-  else loopMode = false;
-  const btn = document.getElementById('btn-loop');
-  btn.classList.toggle('active', !!loopMode);
-  btn.textContent = loopMode === 'one' ? '🔂' : '🔁';
-  btn.title = loopMode === 'one' ? 'Boucle épisode' : (loopMode === 'all' ? 'Boucle liste' : 'Boucle off');
+// Revient au début du morceau en cours (remet à 0:00)
+function restartTrack() {
+  if (activeMedia) {
+    activeMedia.currentTime = 0;
+    activeMedia.play().catch(() => {});
+  }
 }
 
 // Minuteur de sommeil
@@ -3070,22 +3075,8 @@ try {
 } catch(e) {}
 showRecents();
 
-// ─── Reconnexion automatique silencieuse à Google Drive au démarrage ───
-// Tente de récupérer un jeton sans afficher de fenêtre. Si Google se souvient
-// de l'autorisation, l'utilisateur est connecté sans rien faire.
-function trySilentDriveReconnect(attempt = 0) {
-  // Attend que la bibliothèque Google Identity Services soit chargée (jusqu'à ~10s)
-  if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
-    if (attempt < 20) setTimeout(() => trySilentDriveReconnect(attempt + 1), 500);
-    return;
-  }
-  if (!initOAuth()) return;
-  // Demande silencieuse : prompt vide = pas de fenêtre si l'autorisation est mémorisée
-  try {
-    tokenClient.requestAccessToken({ prompt: '' });
-  } catch (e) { /* échec silencieux : l'utilisateur cliquera manuellement si besoin */ }
-}
-trySilentDriveReconnect();
+// La connexion à Google Drive se déclenche au premier clic sur un dossier Drive
+// (un clic utilisateur autorise la fenêtre Google, contrairement à une demande automatique).
 
 
 // PRÉ-CHARGEMENT AUTOMATIQUE DÉSACTIVÉ :
