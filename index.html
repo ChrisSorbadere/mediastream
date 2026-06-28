@@ -226,7 +226,7 @@
   <div class="overlay-bg" id="overlay-bg" onclick="toggleSidebar()"></div>
 
   <!-- Bouton micro flottant pour commande vocale (conduite) -->
-  <button id="voice-btn" onclick="toggleVoiceCommand()" title="Commande vocale" aria-label="Commande vocale">🎤</button>
+  <button id="voice-btn" onclick="toggleVoiceCommand()" title="Commande vocale" aria-label="Commande vocale" style="display:none;">🎤</button>
   <div class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <span class="sidebar-title">Dossiers</span>
@@ -349,9 +349,20 @@ function getDriveToken(silent) {
 
 // Connexion manuelle (bouton dans les réglages) : affiche la fenêtre Google
 async function connectDrive() {
-  const token = await getDriveToken(false);
   const statusEl = document.getElementById('drive-auth-status');
-  if (statusEl) statusEl.textContent = token ? '✅ Connecté' : '❌ Échec de connexion';
+  if (statusEl) statusEl.textContent = '⟳ Connexion en cours…';
+  const token = await getDriveToken(false);
+  // Met à jour le statut de façon fiable après retour du jeton
+  const el = document.getElementById('drive-auth-status');
+  if (el) {
+    if (token) {
+      el.textContent = '✅ Connecté';
+      el.style.color = '#4ade80';
+    } else {
+      el.textContent = '❌ Échec — réessaie';
+      el.style.color = 'var(--red)';
+    }
+  }
 }
 
 // Appelé quand l'état d'authentification change
