@@ -1913,8 +1913,10 @@ async function playEpisode(ep, el, fromQueue = false) {
 
   // Détermine la source du flux selon le type
   if (ep.isDrive) {
-    // Fichier Drive : on ajoute un jeton OAuth frais (reconnexion silencieuse si expiré)
-    const token = await getDriveToken(true);
+    // Réutilise le jeton existant s'il est encore valide (PAS de nouvelle demande = pas de pop-up)
+    let token = (driveAccessToken && Date.now() < driveTokenExpiry) ? driveAccessToken : null;
+    // Seulement si vraiment expiré, on tente une reconnexion silencieuse
+    if (!token) token = await getDriveToken(true);
     if (token) {
       const base = ep.url.split('&access_token=')[0]; // URL propre sans ancien jeton
       activeMedia.src = base + '&access_token=' + token;
@@ -2038,41 +2040,21 @@ async function playEpisode(ep, el, fromQueue = false) {
   m.addEventListener('error', async () => {
     if (m !== activeMedia || !activeEpisode) return;
     const status = document.getElementById('player-status');
-    const ep = activeEpisode;
-
-    // Cas Drive : l'erreur vient probablement du jeton expiré. On en redemande un (silencieux)
-    // et on reprend là où on en était. UNE seule tentative pour éviter toute boucle.
-    if (ep.isDrive && !ep._tokenRetried) {
-      ep._tokenRetried = true;
-      status.className = 'player-status';
-      status.textContent = '⟳ RECONNEXION';
-      status.style.color = 'var(--accent)';
-      const wasAt = m.currentTime || 0;
-      driveAccessToken = null; // force un jeton neuf
-      const token = await getDriveToken(true);
-      if (token) {
-        const base = ep.url.split('&access_token=')[0];
-        m.src = base + '&access_token=' + token;
-        m.addEventListener('loadedmetadata', function once() {
-          if (wasAt > 0 && wasAt < (m.duration || Infinity)) {
-            try { m.currentTime = wasAt; } catch(e) {}
-          }
-          m.play().catch(() => {});
-          m.removeEventListener('loadedmetadata', once);
-        }, { once: true });
-        m.load();
-        return;
-      }
-    }
-    // Sinon, erreur classique
+    // Erreur simple, sans re-demande de jeton (évite les pop-ups en boucle)
     status.className = 'player-status idle';
     status.textContent = '⚠ ERREUR';
     status.style.color = 'var(--red)';
   });
 
-  // Quand la lecture repart, on réautorise une future tentative de refresh jeton
+  // Quand la lecture repart, statut OK
   m.addEventListener('playing', () => {
-    if (m === activeMedia && activeEpisode) activeEpisode._tokenRetried = false;
+    if (m === activeMedia && activeEpisode) {
+      const status = document.getElementById('player-status');
+      if (status && status.textContent.includes('ERREUR')) {
+        status.className = 'player-status';
+        status.textContent = '';
+      }
+    }
   });
   m.addEventListener('waiting', () => {
     if (m !== activeMedia) return;
