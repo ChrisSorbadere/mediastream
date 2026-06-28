@@ -1913,15 +1913,31 @@ async function playEpisode(ep, el, fromQueue = false) {
 
   // Détermine la source du flux selon le type
   if (ep.isDrive) {
-    // Réutilise le jeton existant s'il est encore valide (PAS de nouvelle demande = pas de pop-up)
+    // Réutilise le jeton existant s'il est encore valide (pas de pop-up)
     let token = (driveAccessToken && Date.now() < driveTokenExpiry) ? driveAccessToken : null;
-    // Seulement si vraiment expiré, on tente une reconnexion silencieuse
     if (!token) token = await getDriveToken(true);
     if (token) {
-      const base = ep.url.split('&access_token=')[0]; // URL propre sans ancien jeton
-      activeMedia.src = base + '&access_token=' + token;
+      // Libère un éventuel blob précédent pour ne pas saturer la mémoire
+      if (window._driveBlobUrl) { try { URL.revokeObjectURL(window._driveBlobUrl); } catch(e){} window._driveBlobUrl = null; }
+      const status = document.getElementById('player-status');
+      if (status) { status.className = 'player-status'; status.textContent = '⋯ CHARGE'; status.style.color = 'var(--accent)'; }
+      try {
+        // Télécharge le fichier avec le jeton dans l'EN-TÊTE (méthode fiable, le jeton ne se perd pas)
+        const base = ep.url.split('&access_token=')[0];
+        const resp = await fetch(base, { headers: { Authorization: 'Bearer ' + token } });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const blob = await resp.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        window._driveBlobUrl = blobUrl;
+        // Vérifie qu'on lit toujours le même épisode (l'utilisateur a pu changer entre-temps)
+        if (activeEpisode !== ep) { URL.revokeObjectURL(blobUrl); return; }
+        activeMedia.src = blobUrl;
+      } catch (e) {
+        if (status) { status.className = 'player-status idle'; status.textContent = '⚠ ERREUR'; status.style.color = 'var(--red)'; }
+        return;
+      }
     } else {
-      activeMedia.src = ep.url; // dernier recours
+      activeMedia.src = ep.url;
     }
   } else if (ep.isRadio) {
     activeMedia.src = ep.url; // radio en direct
