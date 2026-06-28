@@ -3070,6 +3070,24 @@ try {
 } catch(e) {}
 showRecents();
 
+// ─── Reconnexion automatique silencieuse à Google Drive au démarrage ───
+// Tente de récupérer un jeton sans afficher de fenêtre. Si Google se souvient
+// de l'autorisation, l'utilisateur est connecté sans rien faire.
+function trySilentDriveReconnect(attempt = 0) {
+  // Attend que la bibliothèque Google Identity Services soit chargée (jusqu'à ~10s)
+  if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
+    if (attempt < 20) setTimeout(() => trySilentDriveReconnect(attempt + 1), 500);
+    return;
+  }
+  if (!initOAuth()) return;
+  // Demande silencieuse : prompt vide = pas de fenêtre si l'autorisation est mémorisée
+  try {
+    tokenClient.requestAccessToken({ prompt: '' });
+  } catch (e) { /* échec silencieux : l'utilisateur cliquera manuellement si besoin */ }
+}
+trySilentDriveReconnect();
+
+
 // PRÉ-CHARGEMENT AUTOMATIQUE DÉSACTIVÉ :
 // il saturait notre proxy Cloudflare et empêchait les podcasts/radios de fonctionner.
 // Le catalogue audio-livres sera chargé à la demande quand l'utilisateur clique sur 📖 Audio-livres.
