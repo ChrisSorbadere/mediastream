@@ -269,7 +269,7 @@
     <div class="control-spacer"></div>
     <button class="control-btn icon-only" id="btn-audio-only" onclick="toggleAudioOnly()" title="Audio seul (continue en arrière-plan)" style="display:none;">🎧</button>
     <button class="control-btn icon-only" id="btn-shuffle" onclick="toggleShuffle()" title="Lecture aléatoire">🔀</button>
-    <button class="control-btn icon-only" id="btn-restart" onclick="restartTrack()" title="Revenir au début">⏮</button>
+    <button class="control-btn icon-only" id="btn-restart" onclick="restartTrack()" title="Revenir au début">↺</button>
     <button class="control-btn icon-only" id="btn-sleep" onclick="showSleepModal()" title="Minuteur de sommeil">💤</button>
     <div class="control-spacer"></div>
     <button class="speed-btn active" onclick="setSpeed(1)">×1</button>
@@ -1907,10 +1907,30 @@ function selectDrive(idx) {
   loadDriveFolder(d.id, d.name);
 }
 
+// Cache en mémoire des listes de dossiers Drive (réouverture instantanée, 0 requête)
+const driveFolderCache = {};
+
 async function loadDriveFolder(folderId, folderName) {
   const list = document.getElementById('episodes-list');
   list.innerHTML = `<div class="loading-text">Chargement Drive<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>`;
   currentEpisodes = [];
+
+  // Dossier déjà chargé dans cette session : réutilise le cache
+  if (driveFolderCache[folderId]) {
+    const eps = driveFolderCache[folderId];
+    currentEpisodes = eps;
+    renderEpisodes(eps);
+    if (!shuffleMode) {
+      shuffleMode = true;
+      const sb = document.getElementById('btn-shuffle');
+      if (sb) sb.classList.add('active');
+    }
+    const badge = document.getElementById('content-badge');
+    badge.textContent = eps.length + ' fichiers';
+    badge.style.display = 'inline';
+    badge.className = 'badge badge-blue';
+    return;
+  }
 
   try {
     // Récupère un jeton OAuth (affiche la fenêtre de connexion la 1re fois, silencieux ensuite)
@@ -1943,6 +1963,7 @@ async function loadDriveFolder(folderId, folderName) {
       isDrive: true,
       folderName: folderName || '',
     }));
+    driveFolderCache[folderId] = eps; // mémorise pour les prochaines visites
     currentEpisodes = eps;
     renderEpisodes(eps);
 
@@ -2052,9 +2073,14 @@ async function playEpisode(ep, el, fromQueue = false) {
       const status = document.getElementById('player-status');
       if (status) { status.className = 'player-status'; status.textContent = '⋯ CHARGE'; status.style.color = 'var(--accent)'; }
       try {
-        // Télécharge le fichier avec le jeton dans l'EN-TÊTE (méthode fiable, le jeton ne se perd pas)
-        const base = ep.url.split('&access_token=')[0];
+        // Télécharge le fichier avec le jeton dans l'EN-TÊTE (méthode fiable, le jeton ne se perd pas).
+        // Reconstruit une URL propre depuis driveId si possible (les anciennes entrées
+        // d'historique/file contiennent une vieille clé API désormais invalide).
+        const base = ep.driveId
+          ? `https://www.googleapis.com/drive/v3/files/${ep.driveId}?alt=media`
+          : ep.url.split('&access_token=')[0].split('&key=')[0];
         const resp = await fetch(base, { headers: { Authorization: 'Bearer ' + token } });
+        if (resp.status === 401) throw new Error('AUTH');
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const blob = await resp.blob();
         const blobUrl = URL.createObjectURL(blob);
@@ -2063,7 +2089,12 @@ async function playEpisode(ep, el, fromQueue = false) {
         if (activeEpisode !== ep) { URL.revokeObjectURL(blobUrl); return; }
         activeMedia.src = blobUrl;
       } catch (e) {
-        if (status) { status.className = 'player-status idle'; status.textContent = '⚠ ERREUR'; status.style.color = 'var(--red)'; }
+        if (status) {
+          status.className = 'player-status idle';
+          status.textContent = (e.message === 'AUTH') ? '🔑 RECONNECTE-TOI' : '⚠ ERREUR';
+          status.style.color = 'var(--red)';
+        }
+        if (e.message === 'AUTH') driveAccessToken = null; // le prochain clic redemandera un jeton
         return;
       }
     } else {
