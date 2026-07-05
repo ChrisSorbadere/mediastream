@@ -40,6 +40,8 @@
   .main { display: flex; flex: 1; overflow: hidden; }
 
   .sidebar { width: 230px; background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0; }
+  .sidebar-right { position: fixed; right: 0; top: 0; bottom: 0; width: 240px; background: var(--bg2); border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; z-index: 50; transform: translateX(100%); transition: transform 0.2s; box-shadow: -4px 0 20px rgba(0,0,0,0.5); }
+  .sidebar-right.open { transform: translateX(0); }
   .sidebar-header { padding: 12px 14px 8px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
   .sidebar-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text3); }
   .btn-add { background: none; border: 1px solid var(--border); border-radius: 4px; color: var(--text2); font-size: 13px; padding: 4px 10px; cursor: pointer; }
@@ -219,6 +221,7 @@
   <div class="header-right">
     <input class="search-input" type="text" placeholder="Rechercher…" id="search-input" oninput="filterEpisodes()" />
     <button class="settings-btn" onclick="showDiscoverModal()" title="Découvrir un podcast">🔍</button>
+    <button class="settings-btn" onclick="toggleDriveSidebar()" title="Mes dossiers Drive">☁</button>
   </div>
 </header>
 
@@ -227,6 +230,14 @@
 
   <!-- Bouton micro flottant pour commande vocale (conduite) -->
   <button id="voice-btn" onclick="toggleVoiceCommand()" title="Commande vocale" aria-label="Commande vocale" style="display:none;">🎤</button>
+  <div class="sidebar-right" id="sidebar-drive">
+    <div class="sidebar-header">
+      <span class="sidebar-title">☁ Google Drive</span>
+      <button class="btn-add" onclick="toggleDriveSidebar()">✕</button>
+    </div>
+    <div class="sidebar-list" id="sidebar-drive-list"></div>
+  </div>
+
   <div class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <span class="sidebar-title">Dossiers</span>
@@ -808,34 +819,50 @@ function renderSidebar() {
     }
   });
 
-  // Séparateur Drive
-  if (driveFolders.length) {
-    const div2 = document.createElement('div');
-    div2.className = 'sidebar-divider';
-    list.appendChild(div2);
-    driveFolders.forEach((d, idx) => {
-      const div = document.createElement('div');
-      const isActive = currentView?.type === 'drive' && currentView.idx === idx;
-      div.className = 'folder-item' + (isActive ? ' active' : '');
-      div.innerHTML = `
-        <span class="folder-icon">☁</span>
-        <span>${escapeHTML(d.name)}</span>
-        <span class="folder-actions">
-          <button class="folder-action-btn" onclick="event.stopPropagation();showDriveManager(${idx})" title="Gérer">⚙</button>
-        </span>`;
-      div.onclick = () => selectDrive(idx);
-      list.appendChild(div);
-    });
-  }
+  renderDriveSidebar();
+}
 
-  // Bouton ajouter Drive
+// ─── Panneau latéral droit : dossiers Google Drive ───
+function renderDriveSidebar() {
+  const list = document.getElementById('sidebar-drive-list');
+  if (!list) return;
+  list.innerHTML = '';
+  driveFolders.forEach((d, idx) => {
+    const div = document.createElement('div');
+    const isActive = currentView?.type === 'drive' && currentView.idx === idx;
+    div.className = 'folder-item' + (isActive ? ' active' : '');
+    div.innerHTML = `
+      <span class="folder-icon">☁</span>
+      <span>${escapeHTML(d.name)}</span>
+      <span class="folder-actions">
+        <button class="folder-action-btn" onclick="event.stopPropagation();showDriveManager(${idx})" title="Gérer">⚙</button>
+      </span>`;
+    div.onclick = () => selectDrive(idx);
+    list.appendChild(div);
+  });
   const addDrive = document.createElement('div');
   addDrive.className = 'folder-item';
   addDrive.style.color = 'var(--text3)';
   addDrive.style.fontSize = '12px';
   addDrive.innerHTML = `<span class="folder-icon">＋</span><span>Dossier Drive</span>`;
-  addDrive.onclick = () => showModal('add-drive');
+  addDrive.onclick = () => { closeDriveSidebar(); showModal('add-drive'); };
   list.appendChild(addDrive);
+}
+
+function toggleDriveSidebar() {
+  const sb = document.getElementById('sidebar-drive');
+  const willOpen = !sb.classList.contains('open');
+  if (willOpen) {
+    // Ferme la sidebar gauche si ouverte, pour ne pas superposer les deux
+    document.getElementById('sidebar').classList.remove('open');
+    renderDriveSidebar();
+  }
+  sb.classList.toggle('open', willOpen);
+  document.getElementById('overlay-bg').classList.toggle('visible', willOpen);
+}
+function closeDriveSidebar() {
+  document.getElementById('sidebar-drive').classList.remove('open');
+  document.getElementById('overlay-bg').classList.remove('visible');
 }
 
 function makeSpecialItem(type, icon, name, active) {
@@ -2150,6 +2177,7 @@ function filterEpisodes() {
 function selectDrive(idx) {
   currentView = { type: 'drive', idx };
   closeSidebar();
+  closeDriveSidebar();
   const d = driveFolders[idx];
   renderSidebar();
   document.getElementById('content-title').textContent = '☁ ' + d.name;
@@ -3229,11 +3257,15 @@ function importData(e) {
 // MOBILE
 // ═══════════════════════════════════════════
 function toggleSidebar() {
+  // Ferme le panneau Drive s'il est ouvert (un seul panneau à la fois)
+  document.getElementById('sidebar-drive').classList.remove('open');
   document.getElementById('sidebar').classList.toggle('open');
-  document.getElementById('overlay-bg').classList.toggle('visible');
+  document.getElementById('overlay-bg').classList.toggle(
+    'visible', document.getElementById('sidebar').classList.contains('open'));
 }
 function closeSidebar() {
   document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-drive').classList.remove('open');
   document.getElementById('overlay-bg').classList.remove('visible');
   // Vide la barre de recherche du header au changement de vue (évite un filtre fantôme)
   const search = document.getElementById('search-input');
