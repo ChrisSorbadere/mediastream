@@ -1944,12 +1944,16 @@ async function offlineListMeta() {
     const st = db.transaction('meta', 'readonly').objectStore('meta');
     const rKeys = st.getAllKeys();
     const rVals = st.getAll();
-    rVals.onsuccess = () => {
-      rKeys.onsuccess = () => {
-        const keys = rKeys.result || [], vals = rVals.result || [];
+    // Les deux requêtes finissent dans un ordre imprévisible : on attend les deux
+    let keys = null, vals = null;
+    const done = () => {
+      if (keys !== null && vals !== null) {
         resolve(vals.map((v, i) => Object.assign({ _key: keys[i] }, v)));
-      };
+      }
     };
+    rKeys.onsuccess = () => { keys = rKeys.result || []; done(); };
+    rVals.onsuccess = () => { vals = rVals.result || []; done(); };
+    rKeys.onerror = () => reject(rKeys.error);
     rVals.onerror = () => reject(rVals.error);
   });
 }
