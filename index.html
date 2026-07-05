@@ -520,6 +520,39 @@ function saveData() {
 function getPositions() {
   try { return JSON.parse(localStorage.getItem(POSITION_KEY) || '{}'); } catch(e) { return {}; }
 }
+
+// ─── Épisodes terminés (badge ✓ Lu fiable) ───
+const FINISHED_KEY = 'mediastream_finished_v1';
+let _finishedSet = null;
+function getFinishedSet() {
+  if (_finishedSet) return _finishedSet;
+  try { _finishedSet = new Set(JSON.parse(localStorage.getItem(FINISHED_KEY) || '[]')); }
+  catch(e) { _finishedSet = new Set(); }
+  return _finishedSet;
+}
+function markFinished(url) {
+  if (!url) return;
+  const s = getFinishedSet();
+  if (s.has(url)) return;
+  s.add(url);
+  let arr = [...s];
+  if (arr.length > 800) arr = arr.slice(-800); // cap : garde les 800 plus récents
+  _finishedSet = new Set(arr);
+  try { localStorage.setItem(FINISHED_KEY, JSON.stringify(arr)); } catch(e) {}
+}
+
+// ─── Réglages de l'app (durée des sauts ⏪⏩, etc.) ───
+const SETTINGS_KEY = 'mediastream_settings_v1';
+function getAppSettings() {
+  try { return Object.assign({ seekBack: 10, seekFwd: 10 }, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); }
+  catch(e) { return { seekBack: 10, seekFwd: 10 }; }
+}
+function setAppSetting(key, value) {
+  const s = getAppSettings();
+  s[key] = value;
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch(e) {}
+}
+
 function savePosition(url, time) {
   if (!url || !time || time < 5) return;
   try {
@@ -729,6 +762,7 @@ function renderSidebar() {
   // Dossiers spéciaux
   list.appendChild(makeSpecialItem('recents', '🕒', 'Récents', currentView?.type === 'recents'));
   list.appendChild(makeSpecialItem('queue', '▶', 'File d\'attente', currentView?.type === 'queue'));
+  list.appendChild(makeSpecialItem('offline', '📥', 'Téléchargés', currentView?.type === 'offline'));
   list.appendChild(makeSpecialItem('verify', '🩺', 'Vérifier les podcasts', currentView?.type === 'verify'));
   list.appendChild(makeSpecialItem('search', '🔎', 'Recherche globale', currentView?.type === 'search'));
   list.appendChild(makeSpecialItem('radio', '📻', 'Radios', currentView?.type === 'radio'));
@@ -817,6 +851,8 @@ function makeSpecialItem(type, icon, name, active) {
   div.onclick = () => {
     if (type === 'recents') showRecents();
     else if (type === 'queue') showQueue();
+    else if (type === 'offline') showOffline();
+    else if (type === 'offline') showOffline();
     else if (type === 'verify') showVerify();
     else if (type === 'search') showGlobalSearch();
     else if (type === 'radio') showRadios();
@@ -1222,6 +1258,17 @@ async function showGlobalSearch() {
 // RADIOS (Radio Browser API)
 // ═══════════════════════════════════════════
 const RADIO_API = 'https://de1.api.radio-browser.info/json/stations/search';
+// Serveurs Radio Browser (si l'un est en panne ou trop lent, on passe au suivant)
+const RADIO_SERVERS = ['de1.api.radio-browser.info', 'de2.api.radio-browser.info', 'fi1.api.radio-browser.info'];
+async function radioFetch(pathAndQuery) {
+  for (const host of RADIO_SERVERS) {
+    try {
+      const res = await fetch(`https://${host}${pathAndQuery}`, { signal: AbortSignal.timeout(8000) });
+      if (res.ok) return await res.json();
+    } catch(e) { /* serveur lent ou HS : on tente le suivant */ }
+  }
+  throw new Error('Serveurs radio injoignables');
+}
 const RADIO_FAVORITES_KEY = 'mediastream_radio_fav_v2';
 let radioFilters = { country: 'France', tag: '', name: '' };
 let radioCountries = null; // cache : [{name, stationcount}]
@@ -1267,8 +1314,7 @@ function moveRadioFavorite(uuid, direction) {
 async function loadRadioCountries() {
   if (radioCountries) return radioCountries;
   try {
-    const res = await fetch('https://de1.api.radio-browser.info/json/countries?hidebroken=true&order=stationcount&reverse=true');
-    const data = await res.json();
+    const data = await radioFetch('/json/countries?hidebroken=true&order=stationcount&reverse=true');
     // Filtre : noms valides + au moins 5 stations
     radioCountries = data.filter(c => c.name && c.name.length > 1 && c.stationcount >= 5);
     return radioCountries;
@@ -1278,8 +1324,7 @@ async function loadRadioCountries() {
 async function loadRadioTags() {
   if (radioTags) return radioTags;
   try {
-    const res = await fetch('https://de1.api.radio-browser.info/json/tags?hidebroken=true&order=stationcount&reverse=true&limit=100');
-    const data = await res.json();
+    const data = await radioFetch('/json/tags?hidebroken=true&order=stationcount&reverse=true&limit=100');
     radioTags = data.filter(t => t.name && t.name.length > 1 && t.stationcount >= 20);
     return radioTags;
   } catch(e) { return []; }
@@ -1424,8 +1469,7 @@ async function searchRadios() {
   if (radioFilters.name) params.set('name', radioFilters.name);
 
   try {
-    const res = await fetch(`${RADIO_API}?${params.toString()}`);
-    const stations = await res.json();
+    const stations = await radioFetch(`/json/stations/search?${params.toString()}`);
 
     if (!stations.length) {
       box.innerHTML = '<div class="empty-text">Aucune station trouvée.</div>';
@@ -1475,7 +1519,7 @@ async function searchRadios() {
     badge.className = 'badge badge-purple';
     badge.style.display = 'inline';
   } catch(e) {
-    box.innerHTML = `<div class="error-text" style="color:var(--red);padding:12px;">Erreur API Radio Browser : ${escapeHTML(e.message)}</div>`;
+    box.innerHTML = `<div class="error-text" style="color:var(--red);padding:12px;">⚠ Serveurs radio injoignables pour le moment.<br><br><button class="btn-cancel" onclick="searchRadios()">↻ Réessayer</button></div>`;
   }
 }
 
@@ -1800,6 +1844,8 @@ async function loadFolder(folder) {
 }
 
 function isFinished(ep) {
+  // Liste explicite des épisodes arrivés au bout (fiable)
+  if (getFinishedSet().has(ep.url)) return true;
   const pos = getPosition(ep.url);
   if (!pos) return false;
   // Pour les positions sauvegardées : si on a dépassé 95% d'une durée connue (depuis position vs durée RSS approx)
@@ -1818,6 +1864,195 @@ function parseDurationToSeconds(d) {
   return 0;
 }
 
+// ═══════════════════════════════════════════
+// MODE HORS-LIGNE (fichiers enregistrés sur l'appareil, IndexedDB)
+// ═══════════════════════════════════════════
+let _odb = null;
+let offlineKeys = new Set(); // clés des fichiers disponibles hors-ligne
+
+function openOfflineDB() {
+  return new Promise((resolve, reject) => {
+    if (_odb) return resolve(_odb);
+    const req = indexedDB.open('mediastream_offline', 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains('files')) db.createObjectStore('files'); // clé → blob audio
+      if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta');   // clé → infos épisode
+    };
+    req.onsuccess = () => { _odb = req.result; resolve(_odb); };
+    req.onerror = () => reject(req.error);
+  });
+}
+async function offlineSave(key, meta, blob) {
+  const db = await openOfflineDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(['files', 'meta'], 'readwrite');
+    tx.objectStore('files').put(blob, key);
+    tx.objectStore('meta').put(meta, key);
+    tx.oncomplete = () => { offlineKeys.add(key); resolve(); };
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function offlineDelete(key) {
+  const db = await openOfflineDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(['files', 'meta'], 'readwrite');
+    tx.objectStore('files').delete(key);
+    tx.objectStore('meta').delete(key);
+    tx.oncomplete = () => { offlineKeys.delete(key); resolve(); };
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function offlineGetBlob(key) {
+  const db = await openOfflineDB();
+  return new Promise((resolve, reject) => {
+    const r = db.transaction('files', 'readonly').objectStore('files').get(key);
+    r.onsuccess = () => resolve(r.result || null);
+    r.onerror = () => reject(r.error);
+  });
+}
+async function offlineListMeta() {
+  const db = await openOfflineDB();
+  return new Promise((resolve, reject) => {
+    const st = db.transaction('meta', 'readonly').objectStore('meta');
+    const rKeys = st.getAllKeys();
+    const rVals = st.getAll();
+    rVals.onsuccess = () => {
+      rKeys.onsuccess = () => {
+        const keys = rKeys.result || [], vals = rVals.result || [];
+        resolve(vals.map((v, i) => Object.assign({ _key: keys[i] }, v)));
+      };
+    };
+    rVals.onerror = () => reject(rVals.error);
+  });
+}
+async function loadOfflineKeys() {
+  try {
+    const db = await openOfflineDB();
+    const keys = await new Promise((res, rej) => {
+      const r = db.transaction('meta', 'readonly').objectStore('meta').getAllKeys();
+      r.onsuccess = () => res(r.result || []); r.onerror = () => rej(r.error);
+    });
+    offlineKeys = new Set(keys);
+  } catch(e) { /* IndexedDB indisponible : le mode hors-ligne sera simplement inactif */ }
+}
+
+// Télécharge (ou retire) un épisode pour l'écoute hors-ligne
+async function toggleOffline(idx, btn) {
+  const ep = (window._renderedEps || currentEpisodes)[idx];
+  if (!ep || ep.isRadio) return;
+  const key = ep.driveId || ep.url;
+
+  if (offlineKeys.has(key)) {
+    if (!confirm('Retirer « ' + ep.title + ' » du hors-ligne ?')) return;
+    await offlineDelete(key);
+    if (btn) { btn.textContent = '📥'; btn.style.color = ''; btn.style.borderColor = ''; btn.title = 'Télécharger'; }
+    toast('Retiré du hors-ligne');
+    renderSidebar();
+    if (currentView?.type === 'offline') showOffline();
+    return;
+  }
+
+  if (btn) btn.textContent = '⏳';
+  try {
+    let resp;
+    if (ep.isDrive) {
+      let token = (driveAccessToken && Date.now() < driveTokenExpiry) ? driveAccessToken : null;
+      if (!token) token = await getDriveToken(true);
+      if (!token) throw new Error('Connexion Google requise');
+      const base = ep.driveId ? `https://www.googleapis.com/drive/v3/files/${ep.driveId}?alt=media` : ep.url;
+      resp = await fetch(base, { headers: { Authorization: 'Bearer ' + token } });
+    } else {
+      resp = await fetch(PROXY + encodeURIComponent(ep.url));
+    }
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const blob = await resp.blob();
+    await offlineSave(key, {
+      title: ep.title, feed: ep.feed || '', type: ep.type || '', url: ep.url,
+      driveId: ep.driveId || '', image: ep.image || '', isDrive: !!ep.isDrive,
+      size: blob.size, savedAt: Date.now(),
+    }, blob);
+    if (btn) { btn.textContent = '✓'; btn.style.color = '#4ade80'; btn.style.borderColor = '#4ade80'; btn.title = 'Disponible hors-ligne'; }
+    toast('📥 Disponible hors-ligne');
+    renderSidebar();
+  } catch(e) {
+    if (btn) btn.textContent = '📥';
+    toast('⚠️ Téléchargement impossible');
+  }
+}
+
+// Vue "Téléchargés"
+async function showOffline() {
+  currentView = { type: 'offline' };
+  closeSidebar();
+  renderSidebar();
+  document.getElementById('content-title').textContent = '📥 Téléchargés';
+  document.getElementById('btn-add-feed').style.display = 'none';
+  const list = document.getElementById('episodes-list');
+  list.innerHTML = `<div class="loading-text">Chargement<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>`;
+
+  let metas = [];
+  try { metas = await offlineListMeta(); } catch(e) {}
+  const badge = document.getElementById('content-badge');
+
+  if (!metas.length) {
+    list.innerHTML = '<div class="empty-text">Aucun fichier hors-ligne.<br><br>Touche 📥 sur un épisode ou une chanson pour l\'enregistrer sur ton téléphone et l\'écouter sans réseau.</div>';
+    badge.style.display = 'none';
+    return;
+  }
+
+  metas.sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+  const totalMo = (metas.reduce((s, m) => s + (m.size || 0), 0) / 1048576).toFixed(0);
+  list.innerHTML = `<div style="padding:8px 12px;font-size:12px;color:var(--text3);">💾 ${totalMo} Mo sur l'appareil</div><div id="offline-list"></div>`;
+  const cont = document.getElementById('offline-list');
+
+  const eps = metas.map(m => ({
+    title: m.title, url: m.url, feed: m.feed, type: m.type,
+    image: m.image, driveId: m.driveId, isDrive: m.isDrive, _key: m._key, _size: m.size,
+  }));
+  currentEpisodes = eps;
+  window._renderedEps = eps;
+
+  eps.forEach((ep) => {
+    const div = document.createElement('div');
+    div.className = 'episode-item';
+    const icon = ep.type === 'video' ? '🎬' : (ep.isDrive ? '☁' : '🎙');
+    const thumbHtml = ep.image
+      ? `<div class="ep-thumb"><img src="${escapeAttr(ep.image)}" loading="lazy" onerror="this.style.display='none';this.parentNode.textContent='${icon}'" style="width:100%;height:100%;object-fit:cover;"></div>`
+      : `<div class="ep-thumb">${icon}</div>`;
+    div.innerHTML = `
+      ${thumbHtml}
+      <div class="ep-info">
+        <div class="ep-title">${escapeHTML(ep.title)}</div>
+        <div class="ep-meta">
+          <span class="ep-source">${escapeHTML(ep.feed || '')}</span>
+          <span>${((ep._size || 0) / 1048576).toFixed(1)} Mo</span>
+        </div>
+      </div>`;
+    const actions = document.createElement('div');
+    actions.className = 'ep-actions-right';
+    const del = document.createElement('button');
+    del.className = 'ep-icon-btn';
+    del.textContent = '✕';
+    del.title = 'Supprimer du hors-ligne';
+    del.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!confirm('Supprimer « ' + ep.title + ' » du hors-ligne ?')) return;
+      await offlineDelete(ep._key);
+      renderSidebar();
+      showOffline();
+    });
+    actions.appendChild(del);
+    div.appendChild(actions);
+    div.onclick = () => playEpisode(ep, div);
+    cont.appendChild(div);
+  });
+
+  badge.textContent = eps.length + ' fichier' + (eps.length > 1 ? 's' : '');
+  badge.className = 'badge badge-purple';
+  badge.style.display = 'inline';
+}
+
 function renderEpisodes(eps) {
   const list = document.getElementById('episodes-list');
   list.innerHTML = '';
@@ -1825,6 +2060,7 @@ function renderEpisodes(eps) {
   const isRecentsView = currentView?.type === 'recents';
   // Filtre "non lus" : actif uniquement dans les dossiers de podcasts
   const applyUnread = unreadOnly && currentView?.type === 'folder';
+  window._renderedEps = eps; // référence exacte de la liste affichée (fiable même filtrée)
   let shownCount = 0;
   eps.forEach((ep, idx) => {
     const finished = isFinished(ep);
@@ -1842,7 +2078,10 @@ function renderEpisodes(eps) {
       ? `<div class="ep-thumb"><img src="${escapeAttr(ep.image)}" loading="lazy" onerror="this.style.display='none';this.parentNode.textContent='${icon}'" style="width:100%;height:100%;object-fit:cover;"></div>`
       : `<div class="ep-thumb">${icon}</div>`;
     const infoBtn = ep.description ? `<button class="ep-icon-btn" onclick="event.stopPropagation();showEpisodeInfo(${idx})" title="Description">ⓘ</button>` : '';
-    const queueBtn = !ep.isRadio ? `<button class="ep-icon-btn" onclick='event.stopPropagation();addToQueue(currentEpisodes[${idx}])' title="Ajouter à la file">➕</button>` : '';
+    const offKey = ep.driveId || ep.url;
+    const isOff = offlineKeys.has(offKey);
+    const dlBtn = !ep.isRadio ? `<button class="ep-icon-btn" onclick='event.stopPropagation();toggleOffline(${idx}, this)' title="${isOff ? 'Disponible hors-ligne' : 'Télécharger'}" ${isOff ? 'style="color:#4ade80;border-color:#4ade80;"' : ''}>${isOff ? '✓' : '📥'}</button>` : '';
+    const queueBtn = !ep.isRadio ? `<button class="ep-icon-btn" onclick='event.stopPropagation();addToQueue(_renderedEps[${idx}])' title="Ajouter à la file">➕</button>` : '';
     const removeBtn = isRecentsView ? `<button class="ep-icon-btn" onclick="event.stopPropagation();removeFromHistory('${escapeAttr(ep.url)}')" title="Retirer">✕</button>` : '';
     div.innerHTML = `
       ${thumbHtml}
@@ -1856,7 +2095,7 @@ function renderEpisodes(eps) {
           ${finishedTxt}
         </div>
       </div>
-      <div class="ep-actions-right">${infoBtn}${queueBtn}${removeBtn}</div>`;
+      <div class="ep-actions-right">${infoBtn}${dlBtn}${queueBtn}${removeBtn}</div>`;
     div.onclick = () => isRecentsView ? playFromRecents(ep) : playEpisode(ep, div);
     list.appendChild(div);
   });
@@ -1871,7 +2110,7 @@ function escapeAttr(s) {
 }
 
 function showEpisodeInfo(idx) {
-  const ep = currentEpisodes[idx];
+  const ep = (window._renderedEps || currentEpisodes)[idx];
   if (!ep) return;
   modalMode = 'episode-info';
   document.getElementById('modal-title').textContent = 'ⓘ ' + ep.title;
@@ -2073,8 +2312,26 @@ async function playEpisode(ep, el, fromQueue = false) {
     activeMedia = audio;
   }
 
+  // Fichier disponible hors-ligne ? Lecture locale, sans réseau
+  let playedFromOffline = false;
+  const _offKey = ep.driveId || ep.url;
+  if (!ep.isRadio && offlineKeys.has(_offKey)) {
+    try {
+      const blob = await offlineGetBlob(_offKey);
+      if (blob) {
+        if (window._driveBlobUrl) { try { URL.revokeObjectURL(window._driveBlobUrl); } catch(e){} window._driveBlobUrl = null; }
+        const bu = URL.createObjectURL(blob);
+        window._driveBlobUrl = bu;
+        activeMedia.src = bu;
+        playedFromOffline = true;
+      }
+    } catch(e) { /* lecture réseau en secours */ }
+  }
+
   // Détermine la source du flux selon le type
-  if (ep.isDrive) {
+  if (playedFromOffline) {
+    // rien : la source locale est déjà en place
+  } else if (ep.isDrive) {
     // Réutilise le jeton existant s'il est encore valide (pas de pop-up)
     let token = (driveAccessToken && Date.now() < driveTokenExpiry) ? driveAccessToken : null;
     if (!token) token = await getDriveToken(true);
@@ -2160,8 +2417,8 @@ async function playEpisode(ep, el, fromQueue = false) {
     navigator.mediaSession.setActionHandler('pause', () => { activeMedia.pause(); });
     navigator.mediaSession.setActionHandler('previoustrack', () => playPrevious());
     navigator.mediaSession.setActionHandler('nexttrack', () => playNext());
-    navigator.mediaSession.setActionHandler('seekbackward', e => activeMedia.currentTime = Math.max(0, activeMedia.currentTime - (e.seekOffset||10)));
-    navigator.mediaSession.setActionHandler('seekforward', e => activeMedia.currentTime = Math.min(activeMedia.duration||Infinity, activeMedia.currentTime + (e.seekOffset||10)));
+    navigator.mediaSession.setActionHandler('seekbackward', e => activeMedia.currentTime = Math.max(0, activeMedia.currentTime - (e.seekOffset || getAppSettings().seekBack)));
+    navigator.mediaSession.setActionHandler('seekforward', e => activeMedia.currentTime = Math.min(activeMedia.duration||Infinity, activeMedia.currentTime + (e.seekOffset || getAppSettings().seekFwd)));
     try { navigator.mediaSession.setActionHandler('seekto', e => { activeMedia.currentTime = e.seekTime; }); } catch(e) {}
   }
 }
@@ -2192,6 +2449,8 @@ async function playEpisode(ep, el, fromQueue = false) {
   });
   m.addEventListener('ended', () => {
     if (m !== activeMedia) return;
+    // Marque l'épisode comme écouté (badge ✓ Lu)
+    if (activeEpisode && !activeEpisode.isRadio) markFinished(activeEpisode.url);
     // Minuteur "fin d'épisode" : on stoppe ici
     if (sleepTimer === 'end-of-episode') {
       sleepTimer = null;
@@ -2317,7 +2576,8 @@ function startSeekHold(direction) {
   // Après 500ms d'appui, on démarre la répétition accélérée
   seekHoldTimer = setTimeout(() => {
     seekHoldFired = true;
-    let step = 10; // commence à 10s
+    const s0 = getAppSettings();
+    let step = Math.max(10, direction < 0 ? s0.seekBack : s0.seekFwd); // commence à la valeur configurée
     const tick = () => {
       seekBy(direction * step);
       // Accélération progressive : 10 → 30 → 60 (plafond)
@@ -2334,9 +2594,10 @@ function endSeekHold(direction) {
   clearTimeout(seekRepeatTimer);
   seekHoldTimer = null;
   seekRepeatTimer = null;
-  // Si le maintien n'a pas déclenché la répétition, c'est un appui simple : saut de 10s
+  // Si le maintien n'a pas déclenché la répétition, c'est un appui simple : saut configurable (⚙)
   if (!seekHoldFired) {
-    seekBy(direction * 10);
+    const s = getAppSettings();
+    seekBy(direction * (direction < 0 ? s.seekBack : s.seekFwd));
   }
   seekHoldFired = false;
 }
@@ -2718,7 +2979,16 @@ function confirmAddDiscovered(feedUrl) {
 function showSettingsModal() {
   document.getElementById('modal-title').textContent = '⚙ Paramètres';
   document.getElementById('modal-error').style.display = 'none';
+  const sset = getAppSettings();
+  const seekOpts = (vals, cur) => vals.map(v => `<option value="${v}" ${v === cur ? 'selected' : ''}>${v} s</option>`).join('');
   document.getElementById('modal-body').innerHTML = `
+    <div class="modal-label">Lecture — durée des sauts</div>
+    <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;">
+      <span style="font-size:16px;">⏪</span>
+      <select class="modal-select" style="flex:1;margin:0;" onchange="setAppSetting('seekBack', parseInt(this.value))">${seekOpts([5,10,15,30], sset.seekBack)}</select>
+      <span style="font-size:16px;">⏩</span>
+      <select class="modal-select" style="flex:1;margin:0;" onchange="setAppSetting('seekFwd', parseInt(this.value))">${seekOpts([10,15,30,60], sset.seekFwd)}</select>
+    </div>
     <div class="modal-label">Google Drive</div>
     <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="connectDrive()">🔑 ${driveAccessToken ? 'Reconnecter' : 'Se connecter à'} Google Drive</button>
     <div id="drive-auth-status" style="font-size:11px;color:var(--text3);margin-bottom:14px;">${driveAccessToken ? '✅ Connecté' : '◌ Non connecté'}</div>
@@ -3248,7 +3518,7 @@ showRecents();
 // (celui du jour + celui de la veille), restaurable depuis les Paramètres.
 const SNAPSHOT_TODAY_KEY = 'mediastream_snapshot_today';
 const SNAPSHOT_PREV_KEY = 'mediastream_snapshot_prev';
-const SNAPSHOT_KEYS = [STORAGE_KEY, POSITION_KEY, HISTORY_KEY, QUEUE_KEY, DELETED_FEEDS_KEY, RADIO_FAVORITES_KEY];
+const SNAPSHOT_KEYS = [STORAGE_KEY, POSITION_KEY, HISTORY_KEY, QUEUE_KEY, DELETED_FEEDS_KEY, RADIO_FAVORITES_KEY, FINISHED_KEY, SETTINGS_KEY];
 
 function takeStartupSnapshot() {
   try {
@@ -3275,6 +3545,10 @@ function restoreSnapshot(which) {
   } catch(e) { alert('Restauration impossible : ' + e.message); }
 }
 takeStartupSnapshot();
+// Mode hors-ligne : charge la liste des fichiers enregistrés, puis rafraîchit la vue initiale
+loadOfflineKeys().then(() => { if (currentView?.type === 'recents') showRecents(); renderSidebar(); });
+// Demande au navigateur de NE PAS purger nos fichiers hors-ligne si l'espace vient à manquer
+try { navigator.storage?.persist?.(); } catch(e) {}
 
 // La connexion à Google Drive se déclenche au premier clic sur un dossier Drive
 // (un clic utilisateur autorise la fenêtre Google, contrairement à une demande automatique).
