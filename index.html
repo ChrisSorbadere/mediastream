@@ -2916,6 +2916,7 @@ function showModal(mode, ctx) {
         Le nom du dossier tel qu'il apparaît dans ton bucket Backblaze (respecte les majuscules).<br>
         Ces fichiers se lisent <b style="color:var(--accent)">sans connexion ni coupure</b>.
       </div>`;
+    actions.innerHTML = `<button class="btn-cancel" onclick="closeModal()">Annuler</button><button class="btn-ok" onclick="saveModal()">Ajouter</button>`;
   } else if (mode === 'add-drive') {
     t.textContent = '☁ Ajouter un dossier Drive';
     body.innerHTML = `
