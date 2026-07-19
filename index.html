@@ -2537,8 +2537,10 @@ async function playEpisode(ep, el, fromQueue = false) {
     _started = true;
     // Pas de reprise pour les radios (flux live)
     // Pas de reprise pour les fichiers Drive courts (< 10 min) : ce sont des chansons, on les réécoute depuis le début
-    const isShortDriveFile = ep.isDrive && activeMedia.duration && activeMedia.duration < 600;
-    if (!ep.isRadio && !isShortDriveFile) {
+    // Pas de reprise pour les chansons courtes (< 10 min) Drive OU B2 : on les relance du début.
+    // (Se positionner dans un flux au chargement provoque des blocages sur certains fichiers.)
+    const isShortSong = (ep.isDrive || ep.isB2) && activeMedia.duration && activeMedia.duration < 600;
+    if (!ep.isRadio && !isShortSong) {
       const saved = getPosition(ep.url);
       if (saved > 5 && activeMedia.duration && saved < activeMedia.duration - 10) {
         activeMedia.currentTime = saved;
@@ -2554,9 +2556,13 @@ async function playEpisode(ep, el, fromQueue = false) {
   activeMedia.addEventListener('error', () => {
     const status = document.getElementById('player-status');
     if (status && activeEpisode === ep) {
+      const err = activeMedia.error;
+      const codes = { 1: 'ABORT', 2: 'RÉSEAU', 3: 'DÉCODAGE', 4: 'SOURCE' };
+      const code = err ? (codes[err.code] || err.code) : '?';
       status.className = 'player-status idle';
-      status.textContent = '⚠ Lecture impossible';
+      status.textContent = '⚠ ' + code;
       status.style.color = 'var(--red)';
+      console.warn('[B2 erreur]', ep.title, '| code:', code, '| src:', activeMedia.src);
     }
   }, { once: true });
 
@@ -2599,9 +2605,9 @@ async function playEpisode(ep, el, fromQueue = false) {
   let lastSave = 0;
   m.addEventListener('timeupdate', () => {
     if (!activeEpisode || activeEpisode.isRadio || m !== activeMedia) return;
-    // Pas de sauvegarde pour les fichiers Drive courts (< 10 min) : chansons réécoutées depuis le début
-    const isShortDriveFile = activeEpisode.isDrive && m.duration && m.duration < 600;
-    if (isShortDriveFile) return;
+    // Pas de sauvegarde pour les chansons courtes (< 10 min) Drive OU B2 : réécoutées du début
+    const isShortSong = (activeEpisode.isDrive || activeEpisode.isB2) && m.duration && m.duration < 600;
+    if (isShortSong) return;
     if (m.currentTime > 5 && Date.now() - lastSave > 5000) {
       savePosition(activeEpisode.url, m.currentTime);
       lastSave = Date.now();
@@ -3750,6 +3756,14 @@ function restoreSnapshot(which) {
   } catch(e) { alert('Restauration impossible : ' + e.message); }
 }
 takeStartupSnapshot();
+// L'app n'utilise AUCUN service worker. S'il en reste un d'une ancienne version,
+// il peut intercepter et casser le streaming audio (échecs qui s'aggravent au fil de la session).
+// On le désinscrit silencieusement.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations()
+    .then(regs => regs.forEach(r => r.unregister()))
+    .catch(() => {});
+}
 // Mode hors-ligne : charge la liste des fichiers enregistrés, puis rafraîchit la vue initiale
 loadOfflineKeys().then(() => { if (currentView?.type === 'recents') showRecents(); renderSidebar(); });
 // Demande au navigateur de NE PAS purger nos fichiers hors-ligne si l'espace vient à manquer
