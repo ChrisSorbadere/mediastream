@@ -872,7 +872,7 @@ function renderDriveSidebar() {
       <span class="folder-icon">🎵</span>
       <span>${escapeHTML(d.name)}</span>
       <span class="folder-actions">
-        <button class="folder-action-btn" onclick="event.stopPropagation();removeB2Folder(${idx})" title="Retirer">🗑</button>
+        <button class="folder-action-btn" onclick="event.stopPropagation();showB2Manager(${idx})" title="Renommer">⚙</button>
       </span>`;
     div.onclick = () => selectB2(idx);
     list.appendChild(div);
@@ -886,10 +886,13 @@ function renderDriveSidebar() {
   list.appendChild(addB2);
 }
 
+function showB2Manager(idx) { closeDriveSidebar(); showModal('manage-b2', idx); }
+
 function removeB2Folder(idx) {
   if (!confirm('Retirer « ' + b2Folders[idx].name + ' » de la liste ?\n(Tes fichiers sur B2 ne sont pas supprimés)')) return;
   b2Folders.splice(idx, 1);
   saveData();
+  closeModal();
   renderDriveSidebar();
   if (currentView?.type === 'b2') showRecents();
 }
@@ -2511,6 +2514,7 @@ async function playEpisode(ep, el, fromQueue = false) {
     activeMedia.src = ep.url; // radio en direct
   } else if (ep.isB2) {
     activeMedia.src = ep.url; // fichier B2 : URL du worker, déjà prête (ni jeton ni proxy)
+    activeMedia.load();       // force un rechargement propre (fiabilise le démarrage en streaming)
   } else {
     activeMedia.src = PROXY + encodeURIComponent(ep.url); // podcasts via proxy
   }
@@ -2527,7 +2531,10 @@ async function playEpisode(ep, el, fromQueue = false) {
   // Pas d'historique pour les radios (sinon ça pollue les Récents)
   if (!ep.isRadio) addToHistory(ep);
 
+  let _started = false;
   const onceLoaded = () => {
+    if (_started) return; // les deux événements peuvent se déclencher : on ne démarre qu'une fois
+    _started = true;
     // Pas de reprise pour les radios (flux live)
     // Pas de reprise pour les fichiers Drive courts (< 10 min) : ce sont des chansons, on les réécoute depuis le début
     const isShortDriveFile = ep.isDrive && activeMedia.duration && activeMedia.duration < 600;
@@ -2539,7 +2546,19 @@ async function playEpisode(ep, el, fromQueue = false) {
     }
     activeMedia.play().catch(e => console.warn('Lecture refusée:', e));
   };
+  // On tente le démarrage sur le premier des deux événements qui arrive (fiabilise le streaming B2)
   activeMedia.addEventListener('loadedmetadata', onceLoaded, { once: true });
+  activeMedia.addEventListener('canplay', onceLoaded, { once: true });
+
+  // Si le chargement échoue vraiment (réseau, fichier absent…), on le signale au lieu de tourner en rond
+  activeMedia.addEventListener('error', () => {
+    const status = document.getElementById('player-status');
+    if (status && activeEpisode === ep) {
+      status.className = 'player-status idle';
+      status.textContent = '⚠ Lecture impossible';
+      status.style.color = 'var(--red)';
+    }
+  }, { once: true });
 
   if ('mediaSession' in navigator) {
     const metaInit = {
@@ -2917,6 +2936,18 @@ function showModal(mode, ctx) {
         Ces fichiers se lisent <b style="color:var(--accent)">sans connexion ni coupure</b>.
       </div>`;
     actions.innerHTML = `<button class="btn-cancel" onclick="closeModal()">Annuler</button><button class="btn-ok" onclick="saveModal()">Ajouter</button>`;
+  } else if (mode === 'manage-b2') {
+    const d = b2Folders[ctx];
+    t.textContent = '⚙ ' + d.name;
+    body.innerHTML = `
+      <div class="modal-label">Nom affiché</div>
+      <input class="modal-input" id="m-name" value="${escapeAttr(d.name)}" />
+      <div class="modal-label">Nom du dossier sur B2</div>
+      <input class="modal-input" id="m-prefix" value="${escapeAttr((d.prefix || '').replace(/\/$/, ''))}" />
+      <div style="font-size:11px;color:var(--text3);margin-top:4px;line-height:1.5;">
+        Modifie le nom affiché, ou corrige le nom du dossier sur B2 si besoin.
+      </div>`;
+    actions.innerHTML = `<button class="btn-danger" onclick="removeB2Folder(${ctx})">Supprimer</button><button class="btn-cancel" onclick="closeModal()">Annuler</button><button class="btn-ok" onclick="saveModal()">Enregistrer</button>`;
   } else if (mode === 'add-drive') {
     t.textContent = '☁ Ajouter un dossier Drive';
     body.innerHTML = `
@@ -3249,6 +3280,16 @@ function saveModal() {
       const f = folders.find(f => f.id === currentView.id);
       if (f) loadFolder(f);
     }
+  } else if (modalMode === 'manage-b2') {
+    const d = b2Folders[modalContext];
+    const name = document.getElementById('m-name').value.trim();
+    let prefix = document.getElementById('m-prefix').value.trim();
+    if (!name || !prefix) { errEl.textContent = 'Nom et dossier requis.'; errEl.style.display='block'; return; }
+    if (!prefix.endsWith('/')) prefix += '/';
+    if (prefix !== d.prefix) delete b2FolderCache[d.prefix]; // le dossier B2 a changé : on vide le cache
+    d.name = name; d.prefix = prefix;
+    saveData(); closeModal(); renderDriveSidebar();
+    if (currentView?.type === 'b2' && currentView.idx === modalContext) selectB2(modalContext);
   } else if (modalMode === 'add-b2') {
     const name = document.getElementById('m-name').value.trim();
     let prefix = document.getElementById('m-prefix').value.trim();
