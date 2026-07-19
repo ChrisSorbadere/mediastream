@@ -446,6 +446,8 @@ const DEFAULT_DRIVE_FOLDERS = [
 // ═══════════════════════════════════════════
 let folders = [];
 let driveFolders = [];
+let b2Folders = []; // dossiers Backblaze B2, ex: { name:'Dormir', prefix:'Dormir/' }
+const B2_BASE = 'https://media-proxy.chrissorbadere.workers.dev';
 let currentView = null; // {type:'folder'|'recents'|'queue'|'verify'|'drive'|'radio'|'audiobook'|'search', ...}
 let currentEpisodes = [];
 let activeEpisodeEl = null;
@@ -493,6 +495,7 @@ function loadData() {
       const data = JSON.parse(saved);
       folders = data.folders || JSON.parse(JSON.stringify(DEFAULT_FOLDERS));
       driveFolders = data.driveFolders || JSON.parse(JSON.stringify(DEFAULT_DRIVE_FOLDERS));
+      b2Folders = data.b2Folders || [];
       // Migration : ajoute les nouveaux podcasts par défaut SAUF ceux supprimés volontairement
       const deleted = getDeletedFeeds();
       let migrated = false;
@@ -525,7 +528,7 @@ function loadData() {
 }
 function saveData() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ folders, driveFolders }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ folders, driveFolders, b2Folders }));
   } catch(e) {
     // Échec probable : stockage plein. On avertit l'utilisateur (sinon perte silencieuse de données)
     console.error('Échec sauvegarde:', e);
@@ -851,6 +854,44 @@ function renderDriveSidebar() {
   addDrive.innerHTML = `<span class="folder-icon">＋</span><span>Dossier Drive</span>`;
   addDrive.onclick = () => { closeDriveSidebar(); showModal('add-drive'); };
   list.appendChild(addDrive);
+
+  // ── Section Backblaze B2 (mes fichiers sans coupure) ──
+  const sep = document.createElement('div');
+  sep.className = 'sidebar-divider';
+  list.appendChild(sep);
+  const b2Title = document.createElement('div');
+  b2Title.style.cssText = 'font-size:11px;color:var(--text3);padding:4px 14px;text-transform:uppercase;letter-spacing:0.5px;';
+  b2Title.textContent = '🎵 Ma musique (B2)';
+  list.appendChild(b2Title);
+
+  b2Folders.forEach((d, idx) => {
+    const div = document.createElement('div');
+    const isActive = currentView?.type === 'b2' && currentView.idx === idx;
+    div.className = 'folder-item' + (isActive ? ' active' : '');
+    div.innerHTML = `
+      <span class="folder-icon">🎵</span>
+      <span>${escapeHTML(d.name)}</span>
+      <span class="folder-actions">
+        <button class="folder-action-btn" onclick="event.stopPropagation();removeB2Folder(${idx})" title="Retirer">🗑</button>
+      </span>`;
+    div.onclick = () => selectB2(idx);
+    list.appendChild(div);
+  });
+  const addB2 = document.createElement('div');
+  addB2.className = 'folder-item';
+  addB2.style.color = 'var(--text3)';
+  addB2.style.fontSize = '12px';
+  addB2.innerHTML = `<span class="folder-icon">＋</span><span>Dossier B2</span>`;
+  addB2.onclick = () => { closeDriveSidebar(); showModal('add-b2'); };
+  list.appendChild(addB2);
+}
+
+function removeB2Folder(idx) {
+  if (!confirm('Retirer « ' + b2Folders[idx].name + ' » de la liste ?\n(Tes fichiers sur B2 ne sont pas supprimés)')) return;
+  b2Folders.splice(idx, 1);
+  saveData();
+  renderDriveSidebar();
+  if (currentView?.type === 'b2') showRecents();
 }
 
 function toggleDriveSidebar() {
@@ -1997,6 +2038,8 @@ async function toggleOffline(idx, btn) {
       if (!token) throw new Error('Connexion Google requise');
       const base = ep.driveId ? `https://www.googleapis.com/drive/v3/files/${ep.driveId}?alt=media` : ep.url;
       resp = await fetch(base, { headers: { Authorization: 'Bearer ' + token } });
+    } else if (ep.isB2) {
+      resp = await fetch(ep.url); // URL du worker, déjà prête
     } else {
       resp = await fetch(PROXY + encodeURIComponent(ep.url));
     }
@@ -2195,6 +2238,66 @@ function selectDrive(idx) {
 
 // Cache en mémoire des listes de dossiers Drive (réouverture instantanée, 0 requête)
 const driveFolderCache = {};
+
+// ═══════════════════════════════════════════
+// BACKBLAZE B2 (dossiers servis par le worker, sans connexion)
+// ═══════════════════════════════════════════
+function selectB2(idx) {
+  currentView = { type: 'b2', idx };
+  closeSidebar();
+  closeDriveSidebar();
+  const d = b2Folders[idx];
+  renderSidebar();
+  document.getElementById('content-title').textContent = '🎵 ' + d.name;
+  document.getElementById('btn-add-feed').style.display = 'none';
+  loadB2Folder(d, idx);
+}
+
+const b2FolderCache = {};
+
+async function loadB2Folder(folder, idx) {
+  const list = document.getElementById('episodes-list');
+  list.innerHTML = `<div class="loading-text">Chargement<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>`;
+  currentEpisodes = [];
+
+  const prefix = folder.prefix;
+  const render = (eps) => {
+    currentEpisodes = eps;
+    window._renderedEps = eps;
+    renderEpisodes(eps);
+    if (!shuffleMode) { shuffleMode = true; const sb = document.getElementById('btn-shuffle'); if (sb) sb.classList.add('active'); }
+    const badge = document.getElementById('content-badge');
+    badge.textContent = eps.length + ' fichiers';
+    badge.style.display = 'inline'; badge.className = 'badge badge-blue';
+  };
+
+  if (b2FolderCache[prefix]) { render(b2FolderCache[prefix]); return; }
+
+  try {
+    const res = await fetch(`${B2_BASE}/b2list/${encodeURI(prefix)}`, { signal: AbortSignal.timeout(15000) });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const files = data.files || [];
+    if (!files.length) {
+      list.innerHTML = '<div class="empty-text">Aucun fichier audio dans ce dossier B2.</div>';
+      return;
+    }
+    const eps = files.map(f => ({
+      title: f.name,
+      date: '',
+      // L'URL passe par le worker (qui authentifie B2). Aucun jeton, aucune coupure.
+      url: `${B2_BASE}/b2/${f.key.split('/').map(encodeURIComponent).join('/')}`,
+      feed: folder.name,
+      type: /\.(mp4|m4v|webm)$/i.test(f.name) ? 'video' : 'b2',
+      isB2: true,
+      folderName: folder.name,
+    }));
+    b2FolderCache[prefix] = eps;
+    render(eps);
+  } catch(e) {
+    list.innerHTML = `<div class="error-text" style="color:var(--red);padding:12px;">Erreur B2 : ${escapeHTML(e.message)}<br><br><button class="btn-cancel" onclick="selectB2(${idx})">↻ Réessayer</button></div>`;
+  }
+}
 
 async function loadDriveFolder(folderId, folderName) {
   const list = document.getElementById('episodes-list');
@@ -2406,6 +2509,8 @@ async function playEpisode(ep, el, fromQueue = false) {
     }
   } else if (ep.isRadio) {
     activeMedia.src = ep.url; // radio en direct
+  } else if (ep.isB2) {
+    activeMedia.src = ep.url; // fichier B2 : URL du worker, déjà prête (ni jeton ni proxy)
   } else {
     activeMedia.src = PROXY + encodeURIComponent(ep.url); // podcasts via proxy
   }
@@ -2800,6 +2905,17 @@ function showModal(mode, ctx) {
         <a href="https://rss.com/tools/find-my-feed/" target="_blank" rel="noopener" style="color:var(--accent);">l'outil rss.com ↗</a>
       </div>`;
     actions.innerHTML = `<button class="btn-cancel" onclick="closeModal()">Annuler</button><button class="btn-ok" onclick="saveModal()">Ajouter</button>`;
+  } else if (mode === 'add-b2') {
+    t.textContent = '🎵 Ajouter un dossier B2';
+    body.innerHTML = `
+      <div class="modal-label">Nom affiché</div>
+      <input class="modal-input" id="m-name" placeholder="Ex. Dormir" />
+      <div class="modal-label">Nom du dossier sur B2</div>
+      <input class="modal-input" id="m-prefix" placeholder="Ex. Dormir" />
+      <div style="font-size:11px;color:var(--text3);margin-top:4px;line-height:1.5;">
+        Le nom du dossier tel qu'il apparaît dans ton bucket Backblaze (respecte les majuscules).<br>
+        Ces fichiers se lisent <b style="color:var(--accent)">sans connexion ni coupure</b>.
+      </div>`;
   } else if (mode === 'add-drive') {
     t.textContent = '☁ Ajouter un dossier Drive';
     body.innerHTML = `
@@ -3132,6 +3248,13 @@ function saveModal() {
       const f = folders.find(f => f.id === currentView.id);
       if (f) loadFolder(f);
     }
+  } else if (modalMode === 'add-b2') {
+    const name = document.getElementById('m-name').value.trim();
+    let prefix = document.getElementById('m-prefix').value.trim();
+    if (!name || !prefix) { errEl.textContent = 'Nom et dossier requis.'; errEl.style.display='block'; return; }
+    if (!prefix.endsWith('/')) prefix += '/'; // le préfixe B2 se termine par /
+    b2Folders.push({ name, prefix });
+    saveData(); closeModal(); renderDriveSidebar();
   } else if (modalMode === 'add-drive') {
     const name = document.getElementById('m-name').value.trim();
     const id = document.getElementById('m-id').value.trim();
