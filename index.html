@@ -2532,11 +2532,11 @@ async function playEpisode(ep, el, fromQueue = false) {
   if (!ep.isRadio) addToHistory(ep);
 
   let _started = false;
+  let _retries = 0;
   const onceLoaded = () => {
     if (_started) return; // les deux événements peuvent se déclencher : on ne démarre qu'une fois
     _started = true;
     // Pas de reprise pour les radios (flux live)
-    // Pas de reprise pour les fichiers Drive courts (< 10 min) : ce sont des chansons, on les réécoute depuis le début
     // Pas de reprise pour les chansons courtes (< 10 min) Drive OU B2 : on les relance du début.
     // (Se positionner dans un flux au chargement provoque des blocages sur certains fichiers.)
     const isShortSong = (ep.isDrive || ep.isB2) && activeMedia.duration && activeMedia.duration < 600;
@@ -2548,23 +2548,40 @@ async function playEpisode(ep, el, fromQueue = false) {
     }
     activeMedia.play().catch(e => console.warn('Lecture refusée:', e));
   };
-  // On tente le démarrage sur le premier des deux événements qui arrive (fiabilise le streaming B2)
-  activeMedia.addEventListener('loadedmetadata', onceLoaded, { once: true });
-  activeMedia.addEventListener('canplay', onceLoaded, { once: true });
-
-  // Si le chargement échoue vraiment (réseau, fichier absent…), on le signale au lieu de tourner en rond
-  activeMedia.addEventListener('error', () => {
+  const attachStart = () => {
+    activeMedia.addEventListener('loadedmetadata', onceLoaded, { once: true });
+    activeMedia.addEventListener('canplay', onceLoaded, { once: true });
+  };
+  const onLoadError = () => {
+    if (activeEpisode !== ep) return; // on a changé de morceau entre-temps
+    // Nouvelle tentative automatique (équivalent du « deuxième clic » qui fonctionne) : 2 essais max
+    if (!ep.isRadio && _retries < 2) {
+      _retries++;
+      const status = document.getElementById('player-status');
+      if (status) { status.className = 'player-status'; status.textContent = '⋯ NOUVEL ESSAI'; status.style.color = ''; }
+      setTimeout(() => {
+        if (activeEpisode !== ep) return;
+        _started = false;
+        attachStart();
+        activeMedia.addEventListener('error', onLoadError, { once: true });
+        activeMedia.load();
+      }, 400);
+      return;
+    }
+    // Échec définitif : on affiche la nature précise du problème
     const status = document.getElementById('player-status');
-    if (status && activeEpisode === ep) {
+    if (status) {
       const err = activeMedia.error;
       const codes = { 1: 'ABORT', 2: 'RÉSEAU', 3: 'DÉCODAGE', 4: 'SOURCE' };
       const code = err ? (codes[err.code] || err.code) : '?';
       status.className = 'player-status idle';
       status.textContent = '⚠ ' + code;
       status.style.color = 'var(--red)';
-      console.warn('[B2 erreur]', ep.title, '| code:', code, '| src:', activeMedia.src);
+      console.warn('[Lecture erreur]', ep.title, '| code:', code, '| src:', activeMedia.src);
     }
-  }, { once: true });
+  };
+  attachStart();
+  activeMedia.addEventListener('error', onLoadError, { once: true });
 
   if ('mediaSession' in navigator) {
     const metaInit = {
