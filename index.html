@@ -2062,6 +2062,29 @@ async function toggleOffline(idx, btn) {
   }
 }
 
+// Supprime TOUS les fichiers hors-ligne (les deux stores, en une transaction)
+async function clearAllOffline() {
+  const n = offlineKeys.size;
+  if (!n) return;
+  if (!confirm('Supprimer les ' + n + ' fichiers téléchargés de ton téléphone ?\n(Tes fichiers sur B2/Drive ne sont pas touchés)')) return;
+  try {
+    const db = await openOfflineDB();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(['files', 'meta'], 'readwrite');
+      tx.objectStore('files').clear();
+      tx.objectStore('meta').clear();
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    offlineKeys = new Set();
+    toast('🗑 Téléchargements supprimés');
+    renderSidebar();
+    showOffline();
+  } catch(e) {
+    toast('⚠️ Suppression impossible');
+  }
+}
+
 // Vue "Téléchargés"
 async function showOffline() {
   currentView = { type: 'offline' };
@@ -2084,7 +2107,11 @@ async function showOffline() {
 
   metas.sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
   const totalMo = (metas.reduce((s, m) => s + (m.size || 0), 0) / 1048576).toFixed(0);
-  list.innerHTML = `<div style="padding:8px 12px;font-size:12px;color:var(--text3);">💾 ${totalMo} Mo sur l'appareil</div><div id="offline-list"></div>`;
+  list.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;">
+      <span style="font-size:12px;color:var(--text3);">💾 ${totalMo} Mo sur l'appareil</span>
+      <button class="btn-cancel" style="font-size:12px;padding:6px 10px;" onclick="clearAllOffline()">🗑 Tout supprimer</button>
+    </div><div id="offline-list"></div>`;
   const cont = document.getElementById('offline-list');
 
   const eps = metas.map(m => ({
