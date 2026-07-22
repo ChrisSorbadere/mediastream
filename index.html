@@ -88,6 +88,8 @@
   .ep-meta { font-size: 12px; color: var(--text3); margin-top: 4px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .ep-source { font-size: 11px; padding: 2px 7px; border-radius: 3px; background: var(--bg4); color: var(--text2); }
   .ep-resume { font-size: 11px; padding: 2px 7px; border-radius: 3px; background: rgba(63,185,80,0.15); color: var(--green); font-family: var(--font-mono); }
+  .ep-resume-btn { border: 1px solid rgba(63,185,80,0.35); cursor: pointer; padding: 3px 8px; border-radius: 6px; transition: background .15s; }
+  .ep-resume-btn:active { background: rgba(63,185,80,0.3); }
   .ep-actions-right { display: flex; flex-direction: column; gap: 4px; align-self: center; }
   .ep-icon-btn { background: var(--bg4); border: 1px solid var(--border); border-radius: 8px; color: var(--text2); font-size: 14px; min-width: 38px; min-height: 38px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: background .15s, border-color .15s; }
   .ep-icon-btn:hover { background: var(--accent2); color: white; border-color: var(--accent); }
@@ -119,7 +121,7 @@
 
   /* CONTROLES SUPP */
   .control-bar { display: flex; align-items: center; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
-  .control-btn { background: var(--bg4); border: 1px solid var(--border); border-radius: 10px; color: var(--text2); font-size: 17px; padding: 10px 13px; min-height: 44px; min-width: 44px; justify-content: center; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: background .15s, color .15s, border-color .15s; }
+  .control-btn { background: var(--bg4); border: 1px solid var(--border); border-radius: 8px; color: var(--text2); font-size: 15px; padding: 6px 11px; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: background .15s, color .15s, border-color .15s; }
   .control-btn:active { background: var(--bg3); border-color: var(--accent2); }
   .control-btn:hover { background: var(--bg3); color: var(--text); border-color: var(--border2); }
   .control-btn.active { background: var(--accent2); color: white; border-color: var(--accent); }
@@ -513,6 +515,22 @@ function savePosition(url, time) {
   } catch(e) {}
 }
 function getPosition(url) { return getPositions()[url]?.time || 0; }
+// Remet le compteur d'un épisode à zéro (la prochaine lecture repartira du début)
+function resetPosition(idx) {
+  const ep = (window._renderedEps || currentEpisodes)[idx];
+  if (!ep) return;
+  clearPosition(ep.url);
+  toast('↺ Reprise remise à zéro');
+  if (window._renderedEps) renderEpisodes(window._renderedEps);
+}
+function clearPosition(url) {
+  try {
+    const positions = getPositions();
+    if (positions[url] === undefined) return;
+    delete positions[url];
+    localStorage.setItem(POSITION_KEY, JSON.stringify(positions));
+  } catch(e) {}
+}
 
 function getHistory() {
   try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch(e) { return []; }
@@ -2060,7 +2078,7 @@ function renderEpisodes(eps) {
     div.className = 'episode-item' + (finished ? ' finished' : '');
     const pos = getPosition(ep.url);
     // Pas de badge de reprise affiché pour les fichiers Drive (musique/clips réécoutés depuis le début)
-    const resumeTxt = (pos > 5 && !finished && !ep.isDrive) ? `<span class="ep-resume">⏱ ${formatTime(pos)}</span>` : '';
+    const resumeTxt = (pos > 5 && !finished && !ep.isDrive) ? `<button class="ep-resume ep-resume-btn" onclick="event.stopPropagation();resetPosition(${idx})" title="Repartir du début">⏱ ${formatTime(pos)} ✕</button>` : '';
     const finishedTxt = finished ? `<span class="ep-resume" style="background:rgba(110,118,129,0.2);color:var(--text3);">✓ Lu</span>` : '';
     const durationTxt = ep.duration ? `<span class="ep-source">${formatDuration(ep.duration)}</span>` : '';
     const icon = ep.type === 'video' ? '🎬' : (ep.type === 'drive' ? '☁' : '🎙');
