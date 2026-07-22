@@ -13,10 +13,13 @@
 <meta name="mobile-web-app-capable" content="yes">
 <title>MediaStream</title>
 <style>
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+  ::-webkit-scrollbar-track { background: transparent; }
   :root {
     --bg: #0d1117; --bg2: #161b22; --bg3: #1c2333; --bg4: #21262d;
     --border: #30363d; --border2: #444c56;
-    --text: #e6edf3; --text2: #8b949e; --text3: #6e7681;
+    --text: #edf3f9; --text2: #9aa6b2; --text3: #7d8894;
     --accent: #58a6ff; --accent2: #1f6feb;
     --green: #3fb950; --red: #f85149; --amber: #d29922; --purple: #bc8cff;
     --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
@@ -49,7 +52,7 @@
   .btn-add:hover { background: var(--bg3); color: var(--text); border-color: var(--border2); }
   .sidebar-list { flex: 1; overflow-y: auto; padding: 6px 0; }
 
-  .folder-item { display: flex; align-items: center; gap: 8px; padding: 11px 14px; cursor: pointer; font-size: 15px; border-left: 2px solid transparent; color: var(--text2); user-select: none; }
+  .folder-item { display: flex; align-items: center; gap: 8px; padding: 12px 14px; cursor: pointer; font-size: 15px; border-left: 3px solid transparent; color: var(--text2); user-select: none; transition: background .15s, color .15s, border-color .15s; border-radius: 0 8px 8px 0; }
   .folder-item:hover { background: var(--bg3); color: var(--text); }
   .folder-item.active { background: var(--bg3); border-left-color: var(--accent); color: var(--text); }
   .folder-item.special { color: var(--purple); }
@@ -72,20 +75,21 @@
   .badge-purple { background: rgba(188,140,255,0.15); color: var(--purple); }
 
   .episodes-list { flex: 1; overflow-y: auto; padding: 8px; -webkit-overflow-scrolling: touch; }
-  .episode-item { display: flex; align-items: flex-start; gap: 12px; padding: 12px; border-radius: 6px; cursor: pointer; border: 1px solid transparent; margin-bottom: 4px; }
+  .episode-item { display: flex; align-items: flex-start; gap: 12px; padding: 13px 12px; border-radius: 10px; cursor: pointer; border: 1px solid transparent; margin-bottom: 5px; transition: background .15s, border-color .15s, transform .08s; }
+  .episode-item:active { transform: scale(0.995); }
   .episode-item:hover { background: var(--bg3); border-color: var(--border); }
-  .episode-item.playing { background: var(--bg3); border-color: var(--accent2); }
+  .episode-item.playing { background: linear-gradient(90deg, rgba(88,166,255,0.10), var(--bg3) 55%); border-color: var(--accent2); box-shadow: inset 3px 0 0 var(--accent); }
   .episode-item.finished { opacity: 0.55; }
   .episode-item.finished .ep-title { color: var(--text2); }
   .ep-thumb { width: 48px; height: 48px; border-radius: 6px; background: var(--bg4); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 19px; border: 1px solid var(--border); overflow: hidden; }
   .ep-thumb img { display: block; }
   .ep-info { flex: 1; min-width: 0; }
-  .ep-title { font-size: 15px; font-weight: 500; line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .ep-title { font-size: 16px; font-weight: 600; line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
   .ep-meta { font-size: 12px; color: var(--text3); margin-top: 4px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .ep-source { font-size: 11px; padding: 2px 7px; border-radius: 3px; background: var(--bg4); color: var(--text2); }
   .ep-resume { font-size: 11px; padding: 2px 7px; border-radius: 3px; background: rgba(63,185,80,0.15); color: var(--green); font-family: var(--font-mono); }
   .ep-actions-right { display: flex; flex-direction: column; gap: 4px; align-self: center; }
-  .ep-icon-btn { background: var(--bg4); border: 1px solid var(--border); color: var(--text2); cursor: pointer; width: 30px; height: 30px; border-radius: 4px; font-size: 13px; display: flex; align-items: center; justify-content: center; padding: 0; }
+  .ep-icon-btn { background: var(--bg4); border: 1px solid var(--border); border-radius: 8px; color: var(--text2); font-size: 14px; min-width: 38px; min-height: 38px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: background .15s, border-color .15s; }
   .ep-icon-btn:hover { background: var(--accent2); color: white; border-color: var(--accent); }
 
   /* Bandeau de pré-chargement audio-livres */
@@ -115,7 +119,8 @@
 
   /* CONTROLES SUPP */
   .control-bar { display: flex; align-items: center; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
-  .control-btn { background: var(--bg4); border: 1px solid var(--border); border-radius: 4px; color: var(--text2); font-size: 15px; padding: 6px 11px; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+  .control-btn { background: var(--bg4); border: 1px solid var(--border); border-radius: 10px; color: var(--text2); font-size: 17px; padding: 10px 13px; min-height: 44px; min-width: 44px; justify-content: center; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: background .15s, color .15s, border-color .15s; }
+  .control-btn:active { background: var(--bg3); border-color: var(--accent2); }
   .control-btn:hover { background: var(--bg3); color: var(--text); border-color: var(--border2); }
   .control-btn.active { background: var(--accent2); color: white; border-color: var(--accent); }
   .control-btn.icon-only { padding: 6px 10px; }
@@ -212,9 +217,9 @@
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
-<!-- Bibliothèque Google Identity Services (OAuth) pour l'accès authentifié à Google Drive -->
-<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
@@ -224,7 +229,7 @@
   <div class="header-right">
     <input class="search-input" type="text" placeholder="Rechercher…" id="search-input" oninput="filterEpisodes()" />
     <button class="settings-btn" onclick="showDiscoverModal()" title="Découvrir un podcast">🔍</button>
-    <button class="settings-btn" onclick="toggleDriveSidebar()" title="Mes dossiers Drive">☁</button>
+    <button class="settings-btn" onclick="toggleDriveSidebar()" title="Ma musique">🎵</button>
   </div>
 </header>
 
@@ -235,7 +240,7 @@
   <button id="voice-btn" onclick="toggleVoiceCommand()" title="Commande vocale" aria-label="Commande vocale" style="display:none;">🎤</button>
   <div class="sidebar-right" id="sidebar-drive">
     <div class="sidebar-header">
-      <span class="sidebar-title">☁ Google Drive</span>
+      <span class="sidebar-title">🎵 Ma musique</span>
       <button class="btn-add" onclick="toggleDriveSidebar()">✕</button>
     </div>
     <div class="sidebar-list" id="sidebar-drive-list"></div>
@@ -311,81 +316,8 @@ const PROXY = 'https://media-proxy.chrissorbadere.workers.dev/?url=';
 // Clé API Drive supprimée : l'accès Drive se fait désormais par OAuth (connexion authentifiée)
 const YOUTUBE_API_KEY = 'AIzaSyDNU9aReyJpvTbcTR4TuACIY9cT4TiODuY';
 
-// ─── OAuth Google Drive (accès authentifié, quotas élevés) ───
-const OAUTH_CLIENT_ID = '357474614736-qv7bk46t8sm4crin426dojlnmvlbncbc.apps.googleusercontent.com';
-const OAUTH_SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
-let driveAccessToken = null;      // jeton d'accès courant
-let driveTokenExpiry = 0;         // timestamp d'expiration (ms)
-let tokenClient = null;           // client de jetons GIS
-let oauthReady = false;           // bibliothèque GIS prête ?
+// ─── Section Drive supprimée : la musique est lue depuis Backblaze B2, sans identification. ───
 
-// Initialise le client OAuth dès que la bibliothèque Google est chargée
-function initOAuth() {
-  if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
-    return false; // pas encore prêt
-  }
-  if (tokenClient) return true; // déjà initialisé
-  tokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: OAUTH_CLIENT_ID,
-    scope: OAUTH_SCOPE,
-    callback: (resp) => {
-      if (resp && resp.access_token) {
-        driveAccessToken = resp.access_token;
-        // Les jetons Google durent ~1h ; on garde une marge de sécurité de 5 min
-        driveTokenExpiry = Date.now() + ((resp.expires_in || 3600) - 300) * 1000;
-        if (typeof onDriveAuthChanged === 'function') onDriveAuthChanged(true);
-      }
-      if (_tokenResolve) { _tokenResolve(driveAccessToken); _tokenResolve = null; }
-    },
-  });
-  oauthReady = true;
-  return true;
-}
-
-let _tokenResolve = null;
-// Récupère un jeton valide. Si expiré/absent, en demande un nouveau.
-// silent=true → reconnexion invisible (sans fenêtre), sinon affiche la fenêtre Google.
-function getDriveToken(silent) {
-  return new Promise((resolve) => {
-    if (!initOAuth()) { resolve(null); return; }
-    // Jeton encore valide ? on le réutilise
-    if (driveAccessToken && Date.now() < driveTokenExpiry) {
-      resolve(driveAccessToken);
-      return;
-    }
-    _tokenResolve = resolve;
-    try {
-      // prompt:'' = silencieux si possible (pas de fenêtre si déjà autorisé récemment)
-      tokenClient.requestAccessToken({ prompt: silent ? '' : 'consent' });
-    } catch (e) {
-      resolve(null);
-    }
-  });
-}
-
-// Connexion manuelle (bouton dans les réglages) : affiche la fenêtre Google
-async function connectDrive() {
-  const statusEl = document.getElementById('drive-auth-status');
-  if (statusEl) statusEl.textContent = '⟳ Connexion en cours…';
-  const token = await getDriveToken(false);
-  // Met à jour le statut de façon fiable après retour du jeton
-  const el = document.getElementById('drive-auth-status');
-  if (el) {
-    if (token) {
-      el.textContent = '✅ Connecté';
-      el.style.color = '#4ade80';
-    } else {
-      el.textContent = '❌ Échec — réessaie';
-      el.style.color = 'var(--red)';
-    }
-  }
-}
-
-// Appelé quand l'état d'authentification change
-function onDriveAuthChanged(connected) {
-  const statusEl = document.getElementById('drive-auth-status');
-  if (statusEl) statusEl.textContent = connected ? '✅ Connecté' : '◌ Non connecté';
-}
 
 
 const STORAGE_KEY = 'mediastream_data_v2';
@@ -437,9 +369,7 @@ const DEFAULT_FOLDERS = [
   },
 ];
 
-const DEFAULT_DRIVE_FOLDERS = [
-  { name: 'Mon Drive', id: '1EUUZ6lsS3vUqOvusvrKcwdHS9s_65iO9' }
-];
+
 
 // ═══════════════════════════════════════════
 // STATE
@@ -494,7 +424,6 @@ function loadData() {
     if (saved) {
       const data = JSON.parse(saved);
       folders = data.folders || JSON.parse(JSON.stringify(DEFAULT_FOLDERS));
-      driveFolders = data.driveFolders || JSON.parse(JSON.stringify(DEFAULT_DRIVE_FOLDERS));
       b2Folders = data.b2Folders || [];
       // Migration : ajoute les nouveaux podcasts par défaut SAUF ceux supprimés volontairement
       const deleted = getDeletedFeeds();
@@ -518,17 +447,15 @@ function loadData() {
       if (migrated) saveData();
     } else {
       folders = JSON.parse(JSON.stringify(DEFAULT_FOLDERS));
-      driveFolders = JSON.parse(JSON.stringify(DEFAULT_DRIVE_FOLDERS));
       saveData();
     }
   } catch(e) {
     folders = JSON.parse(JSON.stringify(DEFAULT_FOLDERS));
-    driveFolders = JSON.parse(JSON.stringify(DEFAULT_DRIVE_FOLDERS));
   }
 }
 function saveData() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ folders, driveFolders, b2Folders }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ folders, b2Folders }));
   } catch(e) {
     // Échec probable : stockage plein. On avertit l'utilisateur (sinon perte silencieuse de données)
     console.error('Échec sauvegarde:', e);
@@ -829,39 +756,14 @@ function renderSidebar() {
   renderDriveSidebar();
 }
 
-// ─── Panneau latéral droit : dossiers Google Drive ───
+// ─── Panneau latéral droit : Ma musique (Backblaze B2) ───
 function renderDriveSidebar() {
   const list = document.getElementById('sidebar-drive-list');
   if (!list) return;
   list.innerHTML = '';
-  driveFolders.forEach((d, idx) => {
-    const div = document.createElement('div');
-    const isActive = currentView?.type === 'drive' && currentView.idx === idx;
-    div.className = 'folder-item' + (isActive ? ' active' : '');
-    div.innerHTML = `
-      <span class="folder-icon">☁</span>
-      <span>${escapeHTML(d.name)}</span>
-      <span class="folder-actions">
-        <button class="folder-action-btn" onclick="event.stopPropagation();showDriveManager(${idx})" title="Gérer">⚙</button>
-      </span>`;
-    div.onclick = () => selectDrive(idx);
-    list.appendChild(div);
-  });
-  const addDrive = document.createElement('div');
-  addDrive.className = 'folder-item';
-  addDrive.style.color = 'var(--text3)';
-  addDrive.style.fontSize = '12px';
-  addDrive.innerHTML = `<span class="folder-icon">＋</span><span>Dossier Drive</span>`;
-  addDrive.onclick = () => { closeDriveSidebar(); showModal('add-drive'); };
-  list.appendChild(addDrive);
-
-  // ── Section Backblaze B2 (mes fichiers sans coupure) ──
-  const sep = document.createElement('div');
-  sep.className = 'sidebar-divider';
-  list.appendChild(sep);
   const b2Title = document.createElement('div');
   b2Title.style.cssText = 'font-size:11px;color:var(--text3);padding:4px 14px;text-transform:uppercase;letter-spacing:0.5px;';
-  b2Title.textContent = '🎵 Ma musique (B2)';
+  b2Title.textContent = 'Mes dossiers';
   list.appendChild(b2Title);
 
   b2Folders.forEach((d, idx) => {
@@ -881,7 +783,7 @@ function renderDriveSidebar() {
   addB2.className = 'folder-item';
   addB2.style.color = 'var(--text3)';
   addB2.style.fontSize = '12px';
-  addB2.innerHTML = `<span class="folder-icon">＋</span><span>Dossier B2</span>`;
+  addB2.innerHTML = `<span class="folder-icon">＋</span><span>Ajouter un dossier</span>`;
   addB2.onclick = () => { closeDriveSidebar(); showModal('add-b2'); };
   list.appendChild(addB2);
 }
@@ -1005,7 +907,7 @@ function showRecents() {
   renderSidebar();
   document.getElementById('content-title').textContent = '🕒 Récemment écoutés';
   document.getElementById('btn-add-feed').style.display = 'none';
-  const history = getHistory().slice(0, 30);
+  const history = getHistory().filter(e => !e.isDrive && e.type !== 'drive').slice(0, 30);
   currentEpisodes = history;
   renderEpisodes(history);
   const badge = document.getElementById('content-badge');
@@ -1022,20 +924,6 @@ async function playFromRecents(ep) {
     return;
   }
 
-  // Fichier Drive : on cherche le dossier Drive d'origine par son nom
-  if (ep.isDrive) {
-    const driveFolder = (driveFolders || []).find(d => d.name === ep.folderName);
-    if (driveFolder) {
-      await loadDriveFolder(driveFolder.id, driveFolder.name);
-      currentView = { type: 'drive', id: driveFolder.id, name: driveFolder.name };
-      const match = currentEpisodes.find(e => e.url === ep.url || e.driveId === ep.driveId);
-      playEpisode(match || ep, match ? findEpisodeElement(match) : null);
-      return;
-    }
-    // Dossier introuvable : lecture simple
-    playEpisode(ep, null);
-    return;
-  }
 
   // Podcast : on cherche le dossier contenant le flux dont vient l'épisode (via ep.feed = nom du flux)
   const folder = folders.find(f => (f.feeds || []).some(fd => fd.name === ep.feed));
@@ -2035,13 +1923,7 @@ async function toggleOffline(idx, btn) {
   if (btn) btn.textContent = '⏳';
   try {
     let resp;
-    if (ep.isDrive) {
-      let token = (driveAccessToken && Date.now() < driveTokenExpiry) ? driveAccessToken : null;
-      if (!token) token = await getDriveToken(true);
-      if (!token) throw new Error('Connexion Google requise');
-      const base = ep.driveId ? `https://www.googleapis.com/drive/v3/files/${ep.driveId}?alt=media` : ep.url;
-      resp = await fetch(base, { headers: { Authorization: 'Bearer ' + token } });
-    } else if (ep.isB2) {
+    if (ep.isB2) {
       resp = await fetch(ep.url); // URL du worker, déjà prête
     } else {
       resp = await fetch(PROXY + encodeURIComponent(ep.url));
@@ -2050,7 +1932,7 @@ async function toggleOffline(idx, btn) {
     const blob = await resp.blob();
     await offlineSave(key, {
       title: ep.title, feed: ep.feed || '', type: ep.type || '', url: ep.url,
-      driveId: ep.driveId || '', image: ep.image || '', isDrive: !!ep.isDrive,
+      driveId: ep.driveId || '', image: ep.image || '',
       size: blob.size, savedAt: Date.now(),
     }, blob);
     if (btn) { btn.textContent = '✓'; btn.style.color = '#4ade80'; btn.style.borderColor = '#4ade80'; btn.title = 'Disponible hors-ligne'; }
@@ -2255,19 +2137,9 @@ function filterEpisodes() {
 // ═══════════════════════════════════════════
 // GOOGLE DRIVE
 // ═══════════════════════════════════════════
-function selectDrive(idx) {
-  currentView = { type: 'drive', idx };
-  closeSidebar();
-  closeDriveSidebar();
-  const d = driveFolders[idx];
-  renderSidebar();
-  document.getElementById('content-title').textContent = '☁ ' + d.name;
-  document.getElementById('btn-add-feed').style.display = 'none';
-  loadDriveFolder(d.id, d.name);
-}
+
 
 // Cache en mémoire des listes de dossiers Drive (réouverture instantanée, 0 requête)
-const driveFolderCache = {};
 
 // ═══════════════════════════════════════════
 // BACKBLAZE B2 (dossiers servis par le worker, sans connexion)
@@ -2329,78 +2201,7 @@ async function loadB2Folder(folder, idx) {
   }
 }
 
-async function loadDriveFolder(folderId, folderName) {
-  const list = document.getElementById('episodes-list');
-  list.innerHTML = `<div class="loading-text">Chargement Drive<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>`;
-  currentEpisodes = [];
 
-  // Dossier déjà chargé dans cette session : réutilise le cache
-  if (driveFolderCache[folderId]) {
-    const eps = driveFolderCache[folderId];
-    currentEpisodes = eps;
-    renderEpisodes(eps);
-    if (!shuffleMode) {
-      shuffleMode = true;
-      const sb = document.getElementById('btn-shuffle');
-      if (sb) sb.classList.add('active');
-    }
-    const badge = document.getElementById('content-badge');
-    badge.textContent = eps.length + ' fichiers';
-    badge.style.display = 'inline';
-    badge.className = 'badge badge-blue';
-    return;
-  }
-
-  try {
-    // Récupère un jeton OAuth (affiche la fenêtre de connexion la 1re fois, silencieux ensuite)
-    const token = await getDriveToken(driveAccessToken ? true : false);
-    if (!token) {
-      list.innerHTML = '<div class="empty-text">Connexion à Google Drive requise.<br><small style="color:var(--text3);">Touche à nouveau le dossier pour te connecter.</small></div>';
-      return;
-    }
-
-    const url = `https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents+and+trashed=false&fields=files(id,name,mimeType,size)&orderBy=name&pageSize=1000`;
-    const res = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
-
-    const files = (data.files || []).filter(f => f.mimeType.includes('audio') || f.mimeType.includes('video'));
-    if (!files.length) {
-      list.innerHTML = '<div class="empty-text">Aucun fichier audio/vidéo dans ce dossier.</div>';
-      return;
-    }
-
-    const eps = files.map(f => ({
-      title: f.name,
-      date: '',
-      // L'URL de base ; le jeton sera ajouté au moment de la lecture (toujours frais)
-      url: `https://www.googleapis.com/drive/v3/files/${f.id}?alt=media`,
-      feed: folderName || 'Google Drive',
-      type: f.mimeType.includes('video') ? 'video' : 'drive',
-      mimeType: f.mimeType,
-      driveId: f.id,
-      isDrive: true,
-      folderName: folderName || '',
-    }));
-    driveFolderCache[folderId] = eps; // mémorise pour les prochaines visites
-    currentEpisodes = eps;
-    renderEpisodes(eps);
-
-    // Active automatiquement la lecture aléatoire à l'ouverture d'un dossier Drive
-    if (!shuffleMode) {
-      shuffleMode = true;
-      const sb = document.getElementById('btn-shuffle');
-      if (sb) sb.classList.add('active');
-    }
-
-    const badge = document.getElementById('content-badge');
-    badge.textContent = eps.length + ' fichiers';
-    badge.style.display = 'inline';
-    badge.className = 'badge badge-blue';
-  } catch(e) {
-    list.innerHTML = `<div class="error-text" style="color:var(--red);padding:12px;">Erreur Drive : ${escapeHTML(e.message)}</div>`;
-  }
-}
 
 // ═══════════════════════════════════════════
 // LECTEUR
@@ -2500,43 +2301,6 @@ async function playEpisode(ep, el, fromQueue = false) {
   // Détermine la source du flux selon le type
   if (playedFromOffline) {
     // rien : la source locale est déjà en place
-  } else if (ep.isDrive) {
-    // Réutilise le jeton existant s'il est encore valide (pas de pop-up)
-    let token = (driveAccessToken && Date.now() < driveTokenExpiry) ? driveAccessToken : null;
-    if (!token) token = await getDriveToken(true);
-    if (token) {
-      // Libère un éventuel blob précédent pour ne pas saturer la mémoire
-      if (window._driveBlobUrl) { try { URL.revokeObjectURL(window._driveBlobUrl); } catch(e){} window._driveBlobUrl = null; }
-      const status = document.getElementById('player-status');
-      if (status) { status.className = 'player-status'; status.textContent = '⋯ CHARGE'; status.style.color = 'var(--accent)'; }
-      try {
-        // Télécharge le fichier avec le jeton dans l'EN-TÊTE (méthode fiable, le jeton ne se perd pas).
-        // Reconstruit une URL propre depuis driveId si possible (les anciennes entrées
-        // d'historique/file contiennent une vieille clé API désormais invalide).
-        const base = ep.driveId
-          ? `https://www.googleapis.com/drive/v3/files/${ep.driveId}?alt=media`
-          : ep.url.split('&access_token=')[0].split('&key=')[0];
-        const resp = await fetch(base, { headers: { Authorization: 'Bearer ' + token } });
-        if (resp.status === 401) throw new Error('AUTH');
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const blob = await resp.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        window._driveBlobUrl = blobUrl;
-        // Vérifie qu'on lit toujours le même épisode (l'utilisateur a pu changer entre-temps)
-        if (activeEpisode !== ep) { URL.revokeObjectURL(blobUrl); return; }
-        activeMedia.src = blobUrl;
-      } catch (e) {
-        if (status) {
-          status.className = 'player-status idle';
-          status.textContent = (e.message === 'AUTH') ? '🔑 RECONNECTE-TOI' : '⚠ ERREUR';
-          status.style.color = 'var(--red)';
-        }
-        if (e.message === 'AUTH') driveAccessToken = null; // le prochain clic redemandera un jeton
-        return;
-      }
-    } else {
-      activeMedia.src = ep.url;
-    }
   } else if (ep.isRadio) {
     activeMedia.src = ep.url; // radio en direct
   } else if (ep.isB2) {
@@ -2998,18 +2762,6 @@ function showModal(mode, ctx) {
         Modifie le nom affiché, ou corrige le nom du dossier sur B2 si besoin.
       </div>`;
     actions.innerHTML = `<button class="btn-danger" onclick="removeB2Folder(${ctx})">Supprimer</button><button class="btn-cancel" onclick="closeModal()">Annuler</button><button class="btn-ok" onclick="saveModal()">Enregistrer</button>`;
-  } else if (mode === 'add-drive') {
-    t.textContent = '☁ Ajouter un dossier Drive';
-    body.innerHTML = `
-      <div class="modal-label">Nom</div>
-      <input class="modal-input" id="m-name" placeholder="Ex. Mes podcasts" />
-      <div class="modal-label">ID du dossier Google Drive</div>
-      <input class="modal-input" id="m-id" placeholder="1ABC...xyz" />
-      <div style="font-size:11px;color:var(--text3);margin-top:4px;line-height:1.5;">
-        L'ID se trouve dans l'URL du dossier : .../folders/<b style="color:var(--accent)">CET-ID-ICI</b><br><br>
-        <b style="color:var(--amber);">⚠ Important :</b> chaque fichier audio/vidéo doit être individuellement partagé <i>"Tous les utilisateurs disposant du lien"</i> dans Drive. Le partage du dossier ne suffit pas toujours.
-      </div>`;
-    actions.innerHTML = `<button class="btn-cancel" onclick="closeModal()">Annuler</button><button class="btn-ok" onclick="saveModal()">Ajouter</button>`;
   }
   document.getElementById('modal').style.display = 'flex';
   setTimeout(() => document.getElementById('m-name')?.focus(), 50);
@@ -3042,22 +2794,7 @@ function showFolderManager(folderId) {
   document.getElementById('modal').style.display = 'flex';
 }
 
-function showDriveManager(idx) {
-  const d = driveFolders[idx];
-  modalMode = 'manage-drive'; modalContext = idx;
-  document.getElementById('modal-title').textContent = `☁ ${d.name}`;
-  document.getElementById('modal-error').style.display = 'none';
-  document.getElementById('modal-body').innerHTML = `
-    <div class="modal-label">Nom</div>
-    <input class="modal-input" id="m-name" value="${escapeAttr(d.name)}" />
-    <div class="modal-label">ID du dossier Drive</div>
-    <input class="modal-input" id="m-id" value="${escapeAttr(d.id)}" />`;
-  document.getElementById('modal-actions').innerHTML = `
-    <button class="btn-danger" onclick="deleteDrive(${idx})">Supprimer</button>
-    <button class="btn-cancel" onclick="closeModal()">Fermer</button>
-    <button class="btn-ok" onclick="saveModal()">Enregistrer</button>`;
-  document.getElementById('modal').style.display = 'flex';
-}
+
 
 function showDiscoverModal() {
   modalMode = 'discover';
@@ -3223,9 +2960,6 @@ function showSettingsModal() {
       <span style="font-size:16px;">⏩</span>
       <select class="modal-select" style="flex:1;margin:0;" onchange="setAppSetting('seekFwd', parseInt(this.value))">${seekOpts([10,15,30,60], sset.seekFwd)}</select>
     </div>
-    <div class="modal-label">Google Drive</div>
-    <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="connectDrive()">🔑 ${driveAccessToken ? 'Reconnecter' : 'Se connecter à'} Google Drive</button>
-    <div id="drive-auth-status" style="font-size:11px;color:var(--text3);margin-bottom:14px;">${driveAccessToken ? '✅ Connecté' : '◌ Non connecté'}</div>
     <div class="modal-label">Mes données</div>
     <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="exportData()">📥 Exporter (JSON)</button>
     <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="document.getElementById('import-file').click()">📤 Importer un JSON</button>
@@ -3347,17 +3081,6 @@ function saveModal() {
     if (!prefix.endsWith('/')) prefix += '/'; // le préfixe B2 se termine par /
     b2Folders.push({ name, prefix });
     saveData(); closeModal(); renderDriveSidebar();
-  } else if (modalMode === 'add-drive') {
-    const name = document.getElementById('m-name').value.trim();
-    const id = document.getElementById('m-id').value.trim();
-    if (!name || !id) { errEl.textContent = 'Nom et ID requis.'; errEl.style.display='block'; return; }
-    driveFolders.push({ name, id });
-    saveData(); closeModal(); renderSidebar();
-  } else if (modalMode === 'manage-drive') {
-    const d = driveFolders[modalContext];
-    d.name = document.getElementById('m-name').value.trim() || d.name;
-    d.id = document.getElementById('m-id').value.trim() || d.id;
-    saveData(); closeModal(); renderSidebar();
   }
 }
 
@@ -3402,13 +3125,6 @@ function deleteFolder(folderId) {
   }
 }
 
-function deleteDrive(idx) {
-  if (!confirm('Supprimer ce dossier Drive ?')) return;
-  driveFolders.splice(idx, 1);
-  saveData(); closeModal();
-  if (currentView?.type === 'drive' && currentView.idx === idx) showRecents();
-  else renderSidebar();
-}
 
 // ═══════════════════════════════════════════
 // IMPORT / EXPORT
@@ -3730,10 +3446,7 @@ function handleVoiceCommand(transcript) {
 
 // Ouvre un dossier (podcast ou Drive) et lance la lecture du premier élément
 async function openFolderAndPlay(folderInfo) {
-  if (folderInfo.type === 'drive') {
-    await loadDriveFolder(folderInfo.id, folderInfo.name);
-    currentView = { type: 'drive', id: folderInfo.id, name: folderInfo.name };
-  } else {
+  {
     // Setup vue dossier podcast
     currentView = { type: 'folder', id: folderInfo.id, folder: folderInfo.obj };
     closeSidebar();
@@ -3813,8 +3526,6 @@ loadOfflineKeys().then(() => { if (currentView?.type === 'recents') showRecents(
 // Demande au navigateur de NE PAS purger nos fichiers hors-ligne si l'espace vient à manquer
 try { navigator.storage?.persist?.(); } catch(e) {}
 
-// La connexion à Google Drive se déclenche au premier clic sur un dossier Drive
-// (un clic utilisateur autorise la fenêtre Google, contrairement à une demande automatique).
 
 
 // PRÉ-CHARGEMENT AUTOMATIQUE DÉSACTIVÉ :
