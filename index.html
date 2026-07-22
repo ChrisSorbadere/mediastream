@@ -3521,6 +3521,34 @@ if ('serviceWorker' in navigator) {
     .then(regs => regs.forEach(r => r.unregister()))
     .catch(() => {});
 }
+// ─── Balayages latéraux : glisser vers la droite = menu gauche, vers la gauche = 🎵 Ma musique ───
+(function setupSwipeGestures() {
+  let sx = 0, sy = 0, tracking = false;
+  const blocked = (target) => target.closest && target.closest('#player, input, select, textarea, .modal-overlay');
+  document.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1 || blocked(e.target)) { tracking = false; return; }
+    sx = e.touches[0].clientX; sy = e.touches[0].clientY; tracking = true;
+  }, { passive: true });
+  document.addEventListener('touchend', (e) => {
+    if (!tracking) return; tracking = false;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - sx, dy = t.clientY - sy;
+    // Geste franchement horizontal uniquement (n'interfère pas avec le défilement des listes)
+    if (Math.abs(dx) < 60 || Math.abs(dx) < 2 * Math.abs(dy)) return;
+    const leftOpen = document.getElementById('sidebar').classList.contains('open');
+    const rightOpen = document.getElementById('sidebar-drive').classList.contains('open');
+    if (dx > 0) {
+      // Vers la droite : ferme le panneau droit s'il est ouvert, sinon ouvre le menu gauche
+      if (rightOpen) closeDriveSidebar();
+      else if (!leftOpen) toggleSidebar();
+    } else {
+      // Vers la gauche : ferme le menu gauche s'il est ouvert, sinon ouvre 🎵 Ma musique
+      if (leftOpen) closeSidebar();
+      else if (!rightOpen) toggleDriveSidebar();
+    }
+  }, { passive: true });
+})();
+
 // Mode hors-ligne : charge la liste des fichiers enregistrés, puis rafraîchit la vue initiale
 loadOfflineKeys().then(() => { if (currentView?.type === 'recents') showRecents(); renderSidebar(); });
 // Demande au navigateur de NE PAS purger nos fichiers hors-ligne si l'espace vient à manquer
