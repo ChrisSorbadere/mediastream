@@ -69,6 +69,7 @@
   .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
   .content-header { padding: 14px 18px; border-bottom: 1px solid var(--border); background: var(--bg2); flex-shrink: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .content-title { font-size: 17px; font-weight: 600; }
+  .btn-icon-only { min-width: 38px; min-height: 34px; padding: 4px 8px; font-size: 17px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
   .badge { font-size: 11px; padding: 3px 9px; border-radius: 10px; font-weight: 600; }
   .badge-blue { background: rgba(88,166,255,0.15); color: var(--accent); }
   .badge-red { background: rgba(248,81,73,0.15); color: var(--red); }
@@ -263,7 +264,7 @@
     <div class="content-header">
       <span class="content-title" id="content-title">Accueil</span>
       <span class="badge badge-blue" id="content-badge" style="display:none;"></span>
-      <button class="btn-add" onclick="resetFolderRead()" id="btn-reset-read" style="margin-left:auto;display:none;" title="Effacer les écoutes de ce dossier">↺ Effacer les écoutes</button>
+      <button class="btn-add btn-icon-only" onclick="resetFolderRead()" id="btn-reset-read" style="margin-left:auto;display:none;" title="Effacer les écoutes de ce dossier" aria-label="Effacer les écoutes de ce dossier">↺</button>
       <button class="btn-add" onclick="toggleUnreadFilter()" id="btn-unread" style="display:none;">Non lus</button>
       <button class="btn-add" onclick="showModal('add-feed')" id="btn-add-feed" style="display:none;">+ Podcast</button>
     </div>
