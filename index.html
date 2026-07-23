@@ -109,6 +109,15 @@
   .player.collapsed video,
   .player.collapsed .control-bar { display: none !important; }
   .player.collapsed .player-top { margin-bottom: 0; }
+  .seek-row { display: flex; align-items: center; gap: 9px; padding: 4px 2px 2px; }
+  .seek-time { font-size: 11px; color: var(--text3); font-family: var(--font-mono); min-width: 38px; text-align: center; flex-shrink: 0; }
+  .seek-track { position: relative; flex: 1; height: 22px; cursor: pointer; touch-action: none; display: flex; align-items: center; }
+  .seek-track::before { content: ''; position: absolute; left: 0; right: 0; height: 5px; background: var(--bg4); border-radius: 3px; }
+  .seek-buffer { position: absolute; left: 0; height: 5px; width: 0; background: var(--border2); border-radius: 3px; }
+  .seek-fill { position: absolute; left: 0; height: 5px; width: 0; background: var(--accent); border-radius: 3px; }
+  .seek-knob { position: absolute; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg2); left: 0; transform: translateX(-7px); transition: transform .1s; }
+  .seek-track.dragging .seek-knob { transform: translateX(-7px) scale(1.35); }
+  .player.collapsed .seek-row { display: none !important; }
   .player-collapse-btn { background: var(--bg4); border: 1px solid var(--border); border-radius: 4px; color: var(--text2); font-size: 14px; padding: 4px 9px; cursor: pointer; flex-shrink: 0; }
   .player-collapse-btn:hover { background: var(--bg3); color: var(--text); }
   .player-top { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
@@ -284,6 +293,15 @@
   </div>
   <audio id="audio-player" controls preload="metadata"></audio>
   <video id="video-player" controls preload="metadata" playsinline webkit-playsinline style="display:none;width:100%;max-height:240px;border-radius:6px;background:#000;margin-top:4px;"></video>
+  <div class="seek-row" id="seek-row">
+    <span class="seek-time" id="seek-cur">0:00</span>
+    <div class="seek-track" id="seek-track">
+      <div class="seek-buffer" id="seek-buffer"></div>
+      <div class="seek-fill" id="seek-fill"></div>
+      <div class="seek-knob" id="seek-knob"></div>
+    </div>
+    <span class="seek-time" id="seek-dur">--:--</span>
+  </div>
   <div class="control-bar">
     <button class="control-btn icon-only" onclick="playPrevious()" title="Précédent">⏮</button>
     <button class="control-btn icon-only" id="btn-rewind" title="-10s (maintenir pour reculer vite)">⏪</button>
@@ -2468,6 +2486,7 @@ async function playEpisode(ep, el, fromQueue = false) {
   });
   let lastSave = 0;
   m.addEventListener('timeupdate', () => {
+    if (m === activeMedia) updateSeekBar();
     if (!activeEpisode || activeEpisode.isRadio || m !== activeMedia) return;
     // Pas de sauvegarde pour les chansons courtes (< 10 min) Drive OU B2 : réécoutées du début
     const isShortSong = (activeEpisode.isDrive || activeEpisode.isB2) && m.duration && m.duration < 600;
@@ -2479,6 +2498,7 @@ async function playEpisode(ep, el, fromQueue = false) {
   });
   m.addEventListener('ended', () => {
     if (m !== activeMedia) return;
+    updateSeekBar();
     // Marque l'épisode comme écouté (badge ✓ Lu)
     if (activeEpisode && !activeEpisode.isRadio) markFinished(activeEpisode.url);
     // Minuteur "fin d'épisode" : on stoppe ici
@@ -3281,6 +3301,81 @@ function formatDate(d) {
   try { return new Date(d).toLocaleDateString('fr-FR', {day:'2-digit', month:'short', year:'numeric'}); }
   catch(e) { return d.slice(0,10); }
 }
+// ─── Barre de progression tactile du lecteur ───
+let seekDragging = false;
+
+function updateSeekBar() {
+  const track = document.getElementById('seek-track');
+  if (!track || !activeMedia) return;
+  const dur = activeMedia.duration;
+  const cur = activeMedia.currentTime || 0;
+  const curEl = document.getElementById('seek-cur');
+  const durEl = document.getElementById('seek-dur');
+  // Flux radio : durée inconnue, barre neutralisée
+  if (!dur || !isFinite(dur)) {
+    document.getElementById('seek-fill').style.width = '0%';
+    document.getElementById('seek-knob').style.left = '0%';
+    document.getElementById('seek-buffer').style.width = '0%';
+    if (curEl) curEl.textContent = activeEpisode?.isRadio ? 'LIVE' : formatTime(cur);
+    if (durEl) durEl.textContent = '--:--';
+    return;
+  }
+  if (!seekDragging) {
+    const pct = Math.min(100, (cur / dur) * 100);
+    document.getElementById('seek-fill').style.width = pct + '%';
+    document.getElementById('seek-knob').style.left = pct + '%';
+    if (curEl) curEl.textContent = formatTime(cur);
+  }
+  if (durEl) durEl.textContent = formatTime(dur);
+  // Portion déjà téléchargée
+  try {
+    const b = activeMedia.buffered;
+    if (b && b.length) {
+      document.getElementById('seek-buffer').style.width = Math.min(100, (b.end(b.length - 1) / dur) * 100) + '%';
+    }
+  } catch(e) {}
+}
+
+function setupSeekBar() {
+  const track = document.getElementById('seek-track');
+  if (!track) return;
+  const posToTime = (clientX) => {
+    const r = track.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+    return ratio * (activeMedia?.duration || 0);
+  };
+  const preview = (clientX) => {
+    const dur = activeMedia?.duration;
+    if (!dur || !isFinite(dur)) return;
+    const r = track.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(100, ((clientX - r.left) / r.width) * 100));
+    document.getElementById('seek-fill').style.width = pct + '%';
+    document.getElementById('seek-knob').style.left = pct + '%';
+    document.getElementById('seek-cur').textContent = formatTime((pct / 100) * dur);
+  };
+  const start = (clientX) => {
+    if (!activeMedia?.duration || !isFinite(activeMedia.duration)) return; // radio : pas de déplacement
+    seekDragging = true; track.classList.add('dragging'); preview(clientX);
+  };
+  const end = (clientX) => {
+    if (!seekDragging) return;
+    seekDragging = false; track.classList.remove('dragging');
+    const t = posToTime(clientX);
+    if (isFinite(t)) activeMedia.currentTime = t;
+    updateSeekBar();
+  };
+  // Tactile
+  track.addEventListener('touchstart', e => { start(e.touches[0].clientX); }, { passive: true });
+  track.addEventListener('touchmove', e => { if (seekDragging) preview(e.touches[0].clientX); }, { passive: true });
+  track.addEventListener('touchend', e => { end(e.changedTouches[0].clientX); }, { passive: true });
+  track.addEventListener('touchcancel', () => { seekDragging = false; track.classList.remove('dragging'); updateSeekBar(); });
+  // Souris (bureau)
+  track.addEventListener('mousedown', e => { start(e.clientX); });
+  document.addEventListener('mousemove', e => { if (seekDragging) preview(e.clientX); });
+  document.addEventListener('mouseup', e => { if (seekDragging) end(e.clientX); });
+}
+setupSeekBar();
+
 function formatTime(s) {
   s = Math.floor(s);
   const m = Math.floor(s/60), sec = s%60;
