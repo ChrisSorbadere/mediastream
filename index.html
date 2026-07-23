@@ -2489,6 +2489,9 @@ async function playEpisode(ep, el, fromQueue = false) {
     document.getElementById('player-status').textContent = 'PAUSE';
   });
   let lastSave = 0;
+  m.addEventListener('durationchange', () => { if (m === activeMedia) updateSeekBar(); });
+  m.addEventListener('loadedmetadata', () => { if (m === activeMedia) updateSeekBar(); });
+  m.addEventListener('progress', () => { if (m === activeMedia) updateSeekBar(); });
   m.addEventListener('play', () => { if (m === activeMedia) updatePlayPauseIcon(); });
   m.addEventListener('pause', () => { if (m === activeMedia) updatePlayPauseIcon(); });
   m.addEventListener('timeupdate', () => {
@@ -3375,7 +3378,11 @@ function setupSeekBar() {
     document.getElementById('seek-cur').textContent = formatTime((pct / 100) * dur);
   };
   const start = (clientX) => {
-    if (!activeMedia?.duration || !isFinite(activeMedia.duration)) return; // radio : pas de déplacement
+    if (!activeMedia?.duration || !isFinite(activeMedia.duration)) {
+      // Radio en direct, ou durée pas encore connue : déplacement impossible pour l'instant
+      if (activeEpisode && !activeEpisode.isRadio) toast('⏳ Déplacement disponible dès que la durée est connue');
+      return;
+    }
     seekDragging = true; track.classList.add('dragging'); preview(clientX);
   };
   const end = (clientX) => {
