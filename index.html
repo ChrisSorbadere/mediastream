@@ -263,7 +263,7 @@
     <div class="content-header">
       <span class="content-title" id="content-title">Accueil</span>
       <span class="badge badge-blue" id="content-badge" style="display:none;"></span>
-      <button class="btn-add" onclick="resetFolderRead()" id="btn-reset-read" style="margin-left:auto;display:none;" title="Marquer tout le dossier comme non lu">↺ Tout non lu</button>
+      <button class="btn-add" onclick="resetFolderRead()" id="btn-reset-read" style="margin-left:auto;display:none;" title="Effacer les écoutes de ce dossier">↺ Effacer les écoutes</button>
       <button class="btn-add" onclick="toggleUnreadFilter()" id="btn-unread" style="display:none;">Non lus</button>
       <button class="btn-add" onclick="showModal('add-feed')" id="btn-add-feed" style="display:none;">+ Podcast</button>
     </div>
@@ -874,7 +874,7 @@ function selectFolder(id) {
   const btnUnread = document.getElementById('btn-unread');
   btnUnread.style.display = 'inline-block';
   btnUnread.classList.toggle('active', unreadOnly);
-  document.getElementById('btn-reset-read').style.display = 'inline-block';
+  document.getElementById('btn-reset-read').style.display = 'none';
   loadFolder(folder);
 }
 
@@ -882,10 +882,13 @@ function selectFolder(id) {
 function resetFolderRead() {
   const eps = currentEpisodes || [];
   if (!eps.length) return;
+  const urls = new Set(eps.map(e => e.url));
+  const name = (currentView?.type === 'b2' ? b2Folders[currentView.idx]?.name : currentView?.folder?.name) || 'ce dossier';
   const done = getFinishedSet();
-  const touched = eps.filter(e => done.has(e.url) || getPosition(e.url) > 5).length;
+  const inHistory = getHistory().filter(h => urls.has(h.url)).length;
+  const touched = eps.filter(e => done.has(e.url) || getPosition(e.url) > 5).length + inHistory;
   if (!touched) { toast('Rien à réinitialiser ici'); return; }
-  if (!confirm('Marquer les ' + touched + ' épisodes lus/commencés de « ' + (currentView?.folder?.name || 'ce dossier') + ' » comme non lus ?')) return;
+  if (!confirm('Effacer les écoutes de « ' + name + ' » ?\n(Marques ✓ Lu, reprises et historique de ces morceaux)')) return;
   try {
     // 1) Retire les marques « écouté »
     eps.forEach(e => done.delete(e.url));
@@ -895,8 +898,11 @@ function resetFolderRead() {
     const positions = getPositions();
     eps.forEach(e => { delete positions[e.url]; });
     localStorage.setItem(POSITION_KEY, JSON.stringify(positions));
+    // 3) Retire ces morceaux de l'historique « Récemment écoutés »
+    const hist = getHistory().filter(h => !urls.has(h.url));
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(hist));
   } catch(e) {}
-  toast('↺ Dossier marqué comme non lu');
+  toast('↺ Écoutes effacées');
   renderEpisodes(currentEpisodes);
 }
 
@@ -2200,7 +2206,7 @@ function selectB2(idx) {
   renderSidebar();
   document.getElementById('content-title').textContent = '🎵 ' + d.name;
   document.getElementById('btn-add-feed').style.display = 'none';
-  document.getElementById('btn-reset-read').style.display = 'none';
+  document.getElementById('btn-reset-read').style.display = 'inline-block';
   loadB2Folder(d, idx);
 }
 
