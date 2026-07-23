@@ -263,7 +263,8 @@
     <div class="content-header">
       <span class="content-title" id="content-title">Accueil</span>
       <span class="badge badge-blue" id="content-badge" style="display:none;"></span>
-      <button class="btn-add" onclick="toggleUnreadFilter()" id="btn-unread" style="margin-left:auto;display:none;">Non lus</button>
+      <button class="btn-add" onclick="resetFolderRead()" id="btn-reset-read" style="margin-left:auto;display:none;" title="Marquer tout le dossier comme non lu">↺ Tout non lu</button>
+      <button class="btn-add" onclick="toggleUnreadFilter()" id="btn-unread" style="display:none;">Non lus</button>
       <button class="btn-add" onclick="showModal('add-feed')" id="btn-add-feed" style="display:none;">+ Podcast</button>
     </div>
     <div class="episodes-list" id="episodes-list"></div>
@@ -658,6 +659,7 @@ function showQueue() {
   renderSidebar();
   document.getElementById('content-title').textContent = '▶ File d\'attente';
   document.getElementById('btn-add-feed').style.display = 'none';
+  document.getElementById('btn-reset-read').style.display = 'none';
 
   const q = getQueue();
   currentEpisodes = q;
@@ -872,7 +874,30 @@ function selectFolder(id) {
   const btnUnread = document.getElementById('btn-unread');
   btnUnread.style.display = 'inline-block';
   btnUnread.classList.toggle('active', unreadOnly);
+  document.getElementById('btn-reset-read').style.display = 'inline-block';
   loadFolder(folder);
+}
+
+// Remet tout le dossier affiché en « non lu » : efface les marques ✓ Lu et les compteurs de reprise
+function resetFolderRead() {
+  const eps = currentEpisodes || [];
+  if (!eps.length) return;
+  const done = getFinishedSet();
+  const touched = eps.filter(e => done.has(e.url) || getPosition(e.url) > 5).length;
+  if (!touched) { toast('Rien à réinitialiser ici'); return; }
+  if (!confirm('Marquer les ' + touched + ' épisodes lus/commencés de « ' + (currentView?.folder?.name || 'ce dossier') + ' » comme non lus ?')) return;
+  try {
+    // 1) Retire les marques « écouté »
+    eps.forEach(e => done.delete(e.url));
+    _finishedSet = done;
+    localStorage.setItem(FINISHED_KEY, JSON.stringify([...done]));
+    // 2) Efface les compteurs de reprise
+    const positions = getPositions();
+    eps.forEach(e => { delete positions[e.url]; });
+    localStorage.setItem(POSITION_KEY, JSON.stringify(positions));
+  } catch(e) {}
+  toast('↺ Dossier marqué comme non lu');
+  renderEpisodes(currentEpisodes);
 }
 
 function toggleUnreadFilter() {
@@ -925,6 +950,7 @@ function showRecents() {
   renderSidebar();
   document.getElementById('content-title').textContent = '🕒 Récemment écoutés';
   document.getElementById('btn-add-feed').style.display = 'none';
+  document.getElementById('btn-reset-read').style.display = 'none';
   const history = getHistory().filter(e => !e.isDrive && e.type !== 'drive').slice(0, 30);
   currentEpisodes = history;
   renderEpisodes(history);
@@ -1317,6 +1343,7 @@ async function showRadios() {
   renderSidebar();
   document.getElementById('content-title').textContent = '📻 Radios';
   document.getElementById('btn-add-feed').style.display = 'none';
+  document.getElementById('btn-reset-read').style.display = 'none';
   document.getElementById('content-badge').style.display = 'none';
 
   // Par défaut : on ouvre sur les favorites s'il y en a, sinon sur la recherche
@@ -1561,6 +1588,7 @@ function showYouTube() {
   renderSidebar();
   document.getElementById('content-title').textContent = '▶️ YouTube';
   document.getElementById('btn-add-feed').style.display = 'none';
+  document.getElementById('btn-reset-read').style.display = 'none';
   document.getElementById('content-badge').style.display = 'none';
 
   const list = document.getElementById('episodes-list');
@@ -1676,6 +1704,7 @@ function showAudiobooks() {
   renderSidebar();
   document.getElementById('content-title').textContent = '\ud83d\udcd6 Audio-livres';
   document.getElementById('btn-add-feed').style.display = 'none';
+  document.getElementById('btn-reset-read').style.display = 'none';
   document.getElementById('content-badge').style.display = 'none';
 
   const list = document.getElementById('episodes-list');
@@ -1992,6 +2021,7 @@ async function showOffline() {
   renderSidebar();
   document.getElementById('content-title').textContent = '📥 Téléchargés';
   document.getElementById('btn-add-feed').style.display = 'none';
+  document.getElementById('btn-reset-read').style.display = 'none';
   const list = document.getElementById('episodes-list');
   list.innerHTML = `<div class="loading-text">Chargement<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>`;
 
@@ -2170,6 +2200,7 @@ function selectB2(idx) {
   renderSidebar();
   document.getElementById('content-title').textContent = '🎵 ' + d.name;
   document.getElementById('btn-add-feed').style.display = 'none';
+  document.getElementById('btn-reset-read').style.display = 'none';
   loadB2Folder(d, idx);
 }
 
