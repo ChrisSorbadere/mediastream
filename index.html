@@ -109,7 +109,10 @@
   .player.collapsed video,
   .player.collapsed .control-bar { display: none !important; }
   .player.collapsed .player-top { margin-bottom: 0; }
-  .seek-row { display: flex; align-items: center; gap: 9px; padding: 4px 2px 2px; }
+  .seek-row { display: flex; align-items: center; gap: 8px; padding: 5px 2px 3px; }
+  .seek-play { background: var(--accent); border: none; border-radius: 50%; width: 38px; height: 38px; min-width: 38px; color: #fff; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: transform .1s, background .15s; }
+  .seek-play:active { transform: scale(0.93); }
+  .seek-play:disabled { background: var(--bg4); color: var(--text3); }
   .seek-time { font-size: 11px; color: var(--text3); font-family: var(--font-mono); min-width: 38px; text-align: center; flex-shrink: 0; }
   .seek-track { position: relative; flex: 1; height: 22px; cursor: pointer; touch-action: none; display: flex; align-items: center; }
   .seek-track::before { content: ''; position: absolute; left: 0; right: 0; height: 5px; background: var(--bg4); border-radius: 3px; }
@@ -291,9 +294,10 @@
     <div class="player-status idle" id="player-status">IDLE</div>
     <button class="player-collapse-btn" id="player-collapse" onclick="togglePlayerCollapse()" title="Réduire le lecteur">▾</button>
   </div>
-  <audio id="audio-player" controls preload="metadata"></audio>
+  <audio id="audio-player" preload="metadata" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;"></audio>
   <video id="video-player" controls preload="metadata" playsinline webkit-playsinline style="display:none;width:100%;max-height:240px;border-radius:6px;background:#000;margin-top:4px;"></video>
   <div class="seek-row" id="seek-row">
+    <button class="seek-play" id="btn-playpause" onclick="togglePlayPause()" title="Lecture / Pause" aria-label="Lecture ou pause">▶</button>
     <span class="seek-time" id="seek-cur">0:00</span>
     <div class="seek-track" id="seek-track">
       <div class="seek-buffer" id="seek-buffer"></div>
@@ -2485,6 +2489,8 @@ async function playEpisode(ep, el, fromQueue = false) {
     document.getElementById('player-status').textContent = 'PAUSE';
   });
   let lastSave = 0;
+  m.addEventListener('play', () => { if (m === activeMedia) updatePlayPauseIcon(); });
+  m.addEventListener('pause', () => { if (m === activeMedia) updatePlayPauseIcon(); });
   m.addEventListener('timeupdate', () => {
     if (m === activeMedia) updateSeekBar();
     if (!activeEpisode || activeEpisode.isRadio || m !== activeMedia) return;
@@ -2498,7 +2504,7 @@ async function playEpisode(ep, el, fromQueue = false) {
   });
   m.addEventListener('ended', () => {
     if (m !== activeMedia) return;
-    updateSeekBar();
+    updateSeekBar(); updatePlayPauseIcon();
     // Marque l'épisode comme écouté (badge ✓ Lu)
     if (activeEpisode && !activeEpisode.isRadio) markFinished(activeEpisode.url);
     // Minuteur "fin d'épisode" : on stoppe ici
@@ -3301,6 +3307,21 @@ function formatDate(d) {
   try { return new Date(d).toLocaleDateString('fr-FR', {day:'2-digit', month:'short', year:'numeric'}); }
   catch(e) { return d.slice(0,10); }
 }
+// ─── Lecture / pause depuis la barre de progression ───
+function togglePlayPause() {
+  if (!activeMedia || !activeEpisode) return;
+  if (activeMedia.paused) activeMedia.play().catch(e => console.warn('Lecture refusée:', e));
+  else activeMedia.pause();
+  updatePlayPauseIcon();
+}
+function updatePlayPauseIcon() {
+  const btn = document.getElementById('btn-playpause');
+  if (!btn) return;
+  const playing = activeMedia && !activeMedia.paused && activeEpisode;
+  btn.textContent = playing ? '⏸' : '▶';
+  btn.disabled = !activeEpisode;
+}
+
 // ─── Barre de progression tactile du lecteur ───
 let seekDragging = false;
 
@@ -3375,6 +3396,7 @@ function setupSeekBar() {
   document.addEventListener('mouseup', e => { if (seekDragging) end(e.clientX); });
 }
 setupSeekBar();
+updatePlayPauseIcon();
 
 function formatTime(s) {
   s = Math.floor(s);
