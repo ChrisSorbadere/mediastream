@@ -3050,6 +3050,9 @@ function showSettingsModal() {
     <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="document.getElementById('import-file').click()">📤 Importer un JSON</button>
     <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importData(event)" />
     <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="clearAppCache()">🧹 Vider le cache (sans perdre mes données)</button>
+    <div class="modal-label">Stockage hors-ligne</div>
+    <div id="storage-info" style="font-size:12px;color:var(--text2);line-height:1.7;background:var(--bg3);border-radius:8px;padding:10px 12px;margin-bottom:8px;">Mesure en cours…</div>
+
     <div class="modal-label" style="margin-top:6px;">Sauvegarde de secours (automatique)</div>
     <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="restoreSnapshot('today')">↩ Restaurer l'état de ce matin</button>
     <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="restoreSnapshot('prev')">↩ Restaurer l'état d'hier</button>
@@ -3059,6 +3062,39 @@ function showSettingsModal() {
     <div style="font-size:11px;color:var(--text3);font-family:var(--font-mono);line-height:1.6;">MediaStream v2.1<br>Proxy : Cloudflare Workers<br>© Christophe Soulas, 2026</div>`;
   document.getElementById('modal-actions').innerHTML = `<button class="btn-cancel" onclick="closeModal()">Fermer</button>`;
   document.getElementById('modal').style.display = 'flex';
+  refreshStorageInfo();
+}
+
+// Mesure l'espace hors-ligne réellement accordé par le navigateur + la protection contre l'effacement
+async function refreshStorageInfo() {
+  const box = document.getElementById('storage-info');
+  if (!box) return;
+  const fmt = (o) => {
+    if (o >= 1073741824) return (o / 1073741824).toFixed(1) + ' Go';
+    if (o >= 1048576) return (o / 1048576).toFixed(0) + ' Mo';
+    return (o / 1024).toFixed(0) + ' Ko';
+  };
+  try {
+    let persisted = null;
+    if (navigator.storage?.persisted) persisted = await navigator.storage.persisted();
+    if (persisted === false && navigator.storage?.persist) persisted = await navigator.storage.persist();
+    let lines = [];
+    if (navigator.storage?.estimate) {
+      const est = await navigator.storage.estimate();
+      const quota = est.quota || 0, usage = est.usage || 0;
+      lines.push(`Espace accordé par le navigateur : <b style="color:var(--text)">${fmt(quota)}</b>`);
+      lines.push(`Déjà utilisé : ${fmt(usage)}`);
+      lines.push(`Disponible pour tes fichiers : <b style="color:var(--accent)">${fmt(Math.max(0, quota - usage))}</b>`);
+    } else {
+      lines.push('Estimation d\'espace non disponible sur ce navigateur.');
+    }
+    if (persisted === true) lines.push('🛡️ <span style="color:var(--green)">Stockage protégé</span> : le navigateur ne l\'effacera pas automatiquement.');
+    else if (persisted === false) lines.push('⚠️ <span style="color:var(--red)">Non protégé</span> : ajoute l\'app à l\'écran d\'accueil pour activer la protection.');
+    lines.push('<span style="color:var(--text3);font-size:11px;">Garde tes fichiers sur B2 comme sauvegarde ; le hors-ligne est une copie locale rapide.</span>');
+    box.innerHTML = lines.join('<br>');
+  } catch(e) {
+    box.textContent = 'Mesure du stockage impossible sur ce navigateur.';
+  }
 }
 
 function closeModal() { document.getElementById('modal').style.display = 'none'; }
