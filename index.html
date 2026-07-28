@@ -340,7 +340,7 @@
 // ═══════════════════════════════════════════
 const PROXY = 'https://media-proxy.chrissorbadere.workers.dev/?url=';
 // Clé API Drive supprimée : l'accès Drive se fait désormais par OAuth (connexion authentifiée)
-const YOUTUBE_API_KEY = 'AIzaSyDNU9aReyJpvTbcTR4TuACIY9cT4TiODuY';
+// Clé API YouTube supprimée : la recherche s'ouvre désormais dans le navigateur externe (plus d'appel API, plus de quota)
 
 // ─── Section Drive supprimée : la musique est lue depuis Backblaze B2, sans identification. ───
 
@@ -1607,10 +1607,8 @@ const AUDIOBOOK_SITES = [
 ];
 
 // ═══════════════════════════════════════════
-// YOUTUBE (recherche + lecteur intégré sans pub)
+// YOUTUBE (ouvre la recherche dans le navigateur externe — Brave sans pub si défini par défaut)
 // ═══════════════════════════════════════════
-let youtubeResultsCache = {}; // cache des recherches (économise le quota)
-
 function showYouTube() {
   currentView = { type: 'youtube' };
   closeSidebar();
@@ -1626,105 +1624,19 @@ function showYouTube() {
       <div style="display:flex;gap:8px;margin-bottom:14px;">
         <input id="yt-search-input" type="text" placeholder="Rechercher sur YouTube…"
           style="flex:1;padding:11px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:14px;"
-          onkeydown="if(event.key==='Enter')doYouTubeSearch()">
-        <button class="btn-add" style="padding:0 16px;" onclick="doYouTubeSearch()">🔍</button>
+          onkeydown="if(event.key==='Enter')openYouTubeSearch()">
+        <button class="btn-add" style="padding:0 16px;" onclick="openYouTubeSearch()">🔍</button>
       </div>
-      <div id="yt-player-zone" style="margin-bottom:14px;"></div>
-      <div id="yt-results"></div>
     </div>`;
-
-  // Réaffiche les derniers résultats si on revient sur l'onglet
-  if (youtubeLastResults && youtubeLastResults.length) {
-    renderYouTubeResults(youtubeLastResults);
-  }
 }
 
-let youtubeLastResults = null;
-
-async function doYouTubeSearch() {
+// Ouvre la page de résultats YouTube dans le navigateur externe (Brave si défini par défaut sur Android)
+function openYouTubeSearch() {
   const input = document.getElementById('yt-search-input');
-  const q = (input.value || '').trim();
+  const q = (input?.value || '').trim();
   if (!q) return;
-  const resultsZone = document.getElementById('yt-results');
-
-  // Cache : si on a déjà cherché ça, on réutilise (économise le quota)
-  if (youtubeResultsCache[q]) {
-    youtubeLastResults = youtubeResultsCache[q];
-    renderYouTubeResults(youtubeResultsCache[q]);
-    return;
-  }
-
-  resultsZone.innerHTML = `<div class="loading-text">Recherche<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>`;
-  try {
-    const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=20&q=${encodeURIComponent(q)}&key=${YOUTUBE_API_KEY}`;
-    const res = await fetch(url);
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message || 'Erreur API YouTube');
-
-    const results = (data.items || []).map(it => ({
-      videoId: it.id.videoId,
-      title: it.snippet.title,
-      channel: it.snippet.channelTitle,
-      thumb: it.snippet.thumbnails?.medium?.url || it.snippet.thumbnails?.default?.url || '',
-    })).filter(r => r.videoId);
-
-    youtubeResultsCache[q] = results;
-    youtubeLastResults = results;
-    renderYouTubeResults(results);
-  } catch(e) {
-    let msg = e.message;
-    if (/quota/i.test(msg)) msg = 'Quota YouTube épuisé pour aujourd\'hui (100 recherches/jour). Réessaie demain.';
-    resultsZone.innerHTML = `<div style="padding:14px;color:var(--red);">⚠ ${escapeHTML(msg)}</div>`;
-  }
-}
-
-function renderYouTubeResults(results) {
-  const resultsZone = document.getElementById('yt-results');
-  if (!resultsZone) return;
-  if (!results.length) {
-    resultsZone.innerHTML = '<div class="empty-text">Aucun résultat.</div>';
-    return;
-  }
-  resultsZone.innerHTML = '';
-  results.forEach(r => {
-    const card = document.createElement('div');
-    card.className = 'episode-item';
-    card.style.cursor = 'pointer';
-    card.innerHTML = `
-      <div class="ep-thumb" style="overflow:hidden;">
-        ${r.thumb ? `<img src="${escapeAttr(r.thumb)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;">` : '▶️'}
-      </div>
-      <div class="ep-info">
-        <div class="ep-title">${escapeHTML(decodeEntities(r.title))}</div>
-        <div class="ep-meta"><span style="color:var(--text3);">${escapeHTML(r.channel)}</span></div>
-      </div>`;
-    card.onclick = () => playYouTube(r.videoId, r.title);
-    resultsZone.appendChild(card);
-  });
-}
-
-// Joue une vidéo YouTube dans le lecteur intégré (iframe officiel, peu/pas de pub)
-function playYouTube(videoId, title) {
-  const zone = document.getElementById('yt-player-zone');
-  if (!zone) return;
-  zone.innerHTML = `
-    <div style="position:relative;width:100%;padding-bottom:56.25%;border-radius:10px;overflow:hidden;background:#000;">
-      <iframe
-        src="https://www.youtube.com/embed/${encodeURIComponent(videoId)}?autoplay=1&rel=0"
-        style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;"
-        allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
-        allowfullscreen></iframe>
-    </div>
-    <div style="font-size:12px;color:var(--text2);margin-top:6px;">${escapeHTML(decodeEntities(title || ''))}</div>`;
-  // Fait défiler vers le lecteur
-  zone.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-// Décode les entités HTML (YouTube renvoie &amp; &#39; etc. dans les titres)
-function decodeEntities(str) {
-  const txt = document.createElement('textarea');
-  txt.innerHTML = str || '';
-  return txt.value;
+  const url = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(q);
+  window.open(url, '_blank', 'noopener');
 }
 
 function showAudiobooks() {
