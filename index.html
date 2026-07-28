@@ -3168,6 +3168,7 @@ function deleteFolder(folderId) {
 async function exportData() {
   const data = {
     folders,
+    b2Folders,
     driveFolders,
     history: getHistory(),
     positions: getPositions(),
@@ -3215,6 +3216,7 @@ function importData(e) {
       if (Array.isArray(data)) { folders = data; } // ancien format
       else {
         if (data.folders) folders = data.folders;
+        if (data.b2Folders) b2Folders = data.b2Folders;
         if (data.driveFolders) driveFolders = data.driveFolders;
         if (data.history) localStorage.setItem(HISTORY_KEY, JSON.stringify(data.history));
         if (data.positions) localStorage.setItem(POSITION_KEY, JSON.stringify(data.positions));
