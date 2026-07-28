@@ -1631,12 +1631,29 @@ function showYouTube() {
 }
 
 // Ouvre la page de résultats YouTube dans le navigateur externe (Brave si défini par défaut sur Android)
+// Ouvre les résultats YouTube en FORÇANT le navigateur par défaut (Brave),
+// pour contourner l'appli YouTube et les "Custom Tabs" qui court-circuitent le navigateur.
+let ytForceBrowser = true;
+
 function openYouTubeSearch() {
   const input = document.getElementById('yt-search-input');
   const q = (input?.value || '').trim();
   if (!q) return;
-  const url = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(q);
-  window.open(url, '_blank', 'noopener');
+  const httpsUrl = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(q);
+
+  if (ytForceBrowser) {
+    // Intent Android ciblant explicitement une VUE navigateur (catégorie BROWSABLE) :
+    // Android le route alors vers le navigateur par défaut (Brave), pas vers l'appli YouTube.
+    const intent = 'intent://www.youtube.com/results?search_query=' + encodeURIComponent(q) +
+      '#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end';
+    try {
+      window.location.href = intent;
+      // Si l'intent échoue (pas sur Android, ou navigateur qui ne suit pas), repli après un court délai
+      setTimeout(() => { try { window.open(httpsUrl, '_blank', 'noopener'); } catch(e){} }, 600);
+      return;
+    } catch(e) { /* repli ci-dessous */ }
+  }
+  window.open(httpsUrl, '_blank', 'noopener');
 }
 
 function showAudiobooks() {
