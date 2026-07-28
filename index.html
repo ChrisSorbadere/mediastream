@@ -1630,29 +1630,15 @@ function showYouTube() {
     </div>`;
 }
 
-// Ouvre la page de résultats YouTube dans le navigateur externe (Brave si défini par défaut sur Android)
-// Ouvre les résultats YouTube en FORÇANT le navigateur par défaut (Brave),
-// pour contourner l'appli YouTube et les "Custom Tabs" qui court-circuitent le navigateur.
-let ytForceBrowser = true;
-
+// Ouvre la recherche YouTube dans le navigateur par défaut d'Android (Brave chez toi).
+// On utilise une navigation https normale : Android la route vers le navigateur
+// défini par défaut, sans sélecteur. (Un intent:// forcerait au contraire la
+// fenêtre "Choisir activité", c'est pourquoi on ne l'utilise plus.)
 function openYouTubeSearch() {
   const input = document.getElementById('yt-search-input');
   const q = (input?.value || '').trim();
   if (!q) return;
   const httpsUrl = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(q);
-  const isAndroid = /Android/i.test(navigator.userAgent);
-
-  if (ytForceBrowser && isAndroid) {
-    // Intent ciblant EXPLICITEMENT Brave (package com.brave.browser) :
-    // Android ouvre Brave directement, sans fenêtre "Choisir activité".
-    // Si Brave n'est pas installé, repli automatique (browser_fallback_url).
-    const intent = 'intent://www.youtube.com/results?search_query=' + encodeURIComponent(q) +
-      '#Intent;scheme=https;action=android.intent.action.VIEW;package=com.brave.browser;' +
-      'S.browser_fallback_url=' + encodeURIComponent(httpsUrl) + ';end';
-    window.location.href = intent;
-    return;
-  }
-  // Desktop / iOS / forçage désactivé : ouverture normale
   window.open(httpsUrl, '_blank', 'noopener');
 }
 
