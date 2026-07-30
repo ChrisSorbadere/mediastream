@@ -1630,15 +1630,29 @@ function showYouTube() {
     </div>`;
 }
 
-// Ouvre la recherche YouTube dans le navigateur par défaut d'Android (Brave chez toi).
-// On utilise une navigation https normale : Android la route vers le navigateur
-// défini par défaut, sans sélecteur. (Un intent:// forcerait au contraire la
-// fenêtre "Choisir activité", c'est pourquoi on ne l'utilise plus.)
+// Ouvre la page de résultats YouTube dans le navigateur externe (Brave si défini par défaut sur Android)
+// Ouvre les résultats YouTube en FORÇANT le navigateur par défaut (Brave),
+// pour contourner l'appli YouTube et les "Custom Tabs" qui court-circuitent le navigateur.
+let ytForceBrowser = true;
+
 function openYouTubeSearch() {
   const input = document.getElementById('yt-search-input');
   const q = (input?.value || '').trim();
   if (!q) return;
   const httpsUrl = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(q);
+
+  if (ytForceBrowser) {
+    // Intent Android ciblant explicitement une VUE navigateur (catégorie BROWSABLE) :
+    // Android le route alors vers le navigateur par défaut (Brave), pas vers l'appli YouTube.
+    const intent = 'intent://www.youtube.com/results?search_query=' + encodeURIComponent(q) +
+      '#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end';
+    try {
+      window.location.href = intent;
+      // Si l'intent échoue (pas sur Android, ou navigateur qui ne suit pas), repli après un court délai
+      setTimeout(() => { try { window.open(httpsUrl, '_blank', 'noopener'); } catch(e){} }, 600);
+      return;
+    } catch(e) { /* repli ci-dessous */ }
+  }
   window.open(httpsUrl, '_blank', 'noopener');
 }
 
@@ -2338,30 +2352,37 @@ async function playEpisode(ep, el, fromQueue = false) {
   };
   const onLoadError = () => {
     if (activeEpisode !== ep) return; // on a changé de morceau entre-temps
-    // Nouvelle tentative automatique (équivalent du « deuxième clic » qui fonctionne) : 2 essais max
-    if (!ep.isRadio && _retries < 2) {
+    // Jusqu'à 4 nouvelles tentatives automatiques avant d'abandonner ce morceau
+    if (!ep.isRadio && _retries < 4) {
       _retries++;
       const status = document.getElementById('player-status');
-      if (status) { status.className = 'player-status'; status.textContent = '⋯ NOUVEL ESSAI'; status.style.color = ''; }
+      if (status) { status.className = 'player-status'; status.textContent = '⋯ ESSAI ' + _retries + '/4'; status.style.color = ''; }
       setTimeout(() => {
         if (activeEpisode !== ep) return;
         _started = false;
         attachStart();
         activeMedia.addEventListener('error', onLoadError, { once: true });
+        // Anti-cache : une URL légèrement différente force une nouvelle connexion propre
+        const sep = ep.url.includes('?') ? '&' : '?';
+        activeMedia.src = ep.isB2 ? (ep.url + sep + 'r=' + Date.now()) : ep.url;
         activeMedia.load();
-      }, 400);
+      }, 300 * _retries); // attente croissante : 300, 600, 900, 1200 ms
       return;
     }
-    // Échec définitif : on affiche la nature précise du problème
+    // Échec après tous les essais : on passe au morceau suivant (si lecture de liste/aléatoire)
     const status = document.getElementById('player-status');
-    if (status) {
-      const err = activeMedia.error;
-      const codes = { 1: 'ABORT', 2: 'RÉSEAU', 3: 'DÉCODAGE', 4: 'SOURCE' };
-      const code = err ? (codes[err.code] || err.code) : '?';
+    const err = activeMedia.error;
+    const codes = { 1: 'ABORT', 2: 'RÉSEAU', 3: 'DÉCODAGE', 4: 'SOURCE' };
+    const code = err ? (codes[err.code] || err.code) : '?';
+    console.warn('[Lecture échec définitif]', ep.title, '| code:', code, '| src:', activeMedia.src);
+    const hasNext = (shuffleMode || (currentEpisodes && currentEpisodes.length > 1)) && !ep.isRadio;
+    if (hasNext) {
+      if (status) { status.className = 'player-status'; status.textContent = '⏭ SUIVANT'; status.style.color = 'var(--red)'; }
+      setTimeout(() => { if (activeEpisode === ep) playNext(); }, 900);
+    } else if (status) {
       status.className = 'player-status idle';
       status.textContent = '⚠ ' + code;
       status.style.color = 'var(--red)';
-      console.warn('[Lecture erreur]', ep.title, '| code:', code, '| src:', activeMedia.src);
     }
   };
   attachStart();
@@ -3168,7 +3189,6 @@ function deleteFolder(folderId) {
 async function exportData() {
   const data = {
     folders,
-    b2Folders,
     driveFolders,
     history: getHistory(),
     positions: getPositions(),
@@ -3216,7 +3236,6 @@ function importData(e) {
       if (Array.isArray(data)) { folders = data; } // ancien format
       else {
         if (data.folders) folders = data.folders;
-        if (data.b2Folders) b2Folders = data.b2Folders;
         if (data.driveFolders) driveFolders = data.driveFolders;
         if (data.history) localStorage.setItem(HISTORY_KEY, JSON.stringify(data.history));
         if (data.positions) localStorage.setItem(POSITION_KEY, JSON.stringify(data.positions));
