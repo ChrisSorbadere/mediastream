@@ -2408,6 +2408,9 @@ async function playEpisode(ep, el, fromQueue = false) {
     navigator.mediaSession.setActionHandler('seekbackward', e => activeMedia.currentTime = Math.max(0, activeMedia.currentTime - (e.seekOffset || getAppSettings().seekBack)));
     navigator.mediaSession.setActionHandler('seekforward', e => activeMedia.currentTime = Math.min(activeMedia.duration||Infinity, activeMedia.currentTime + (e.seekOffset || getAppSettings().seekFwd)));
     try { navigator.mediaSession.setActionHandler('seekto', e => { activeMedia.currentTime = e.seekTime; }); } catch(e) {}
+    // Indique à Android que la lecture est active : c'est ce qui l'empêche de suspendre
+    // l'app quand l'écran est éteint, y compris au passage d'un morceau à l'autre.
+    try { navigator.mediaSession.playbackState = 'playing'; } catch(e) {}
   }
 }
 
@@ -2428,8 +2431,8 @@ async function playEpisode(ep, el, fromQueue = false) {
   m.addEventListener('durationchange', () => { if (m === activeMedia) updateSeekBar(); });
   m.addEventListener('loadedmetadata', () => { if (m === activeMedia) updateSeekBar(); });
   m.addEventListener('progress', () => { if (m === activeMedia) updateSeekBar(); });
-  m.addEventListener('play', () => { if (m === activeMedia) updatePlayPauseIcon(); });
-  m.addEventListener('pause', () => { if (m === activeMedia) updatePlayPauseIcon(); });
+  m.addEventListener('play', () => { if (m === activeMedia) { updatePlayPauseIcon(); try { navigator.mediaSession.playbackState = 'playing'; } catch(e){} } });
+  m.addEventListener('pause', () => { if (m === activeMedia) { updatePlayPauseIcon(); try { navigator.mediaSession.playbackState = 'paused'; } catch(e){} } });
   m.addEventListener('timeupdate', () => {
     if (m === activeMedia) updateSeekBar();
     if (!activeEpisode || activeEpisode.isRadio || m !== activeMedia) return;
@@ -2444,6 +2447,9 @@ async function playEpisode(ep, el, fromQueue = false) {
   m.addEventListener('ended', () => {
     if (m !== activeMedia) return;
     updateSeekBar(); updatePlayPauseIcon();
+    // On maintient l'état "en lecture" pendant le chargement du morceau suivant :
+    // sinon Android peut suspendre l'app dans ce court intervalle, écran éteint.
+    try { navigator.mediaSession.playbackState = 'playing'; } catch(e) {}
     // Marque l'épisode comme écouté (badge ✓ Lu)
     if (activeEpisode && !activeEpisode.isRadio) markFinished(activeEpisode.url);
     // Minuteur "fin d'épisode" : on stoppe ici
