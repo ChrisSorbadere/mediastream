@@ -54,8 +54,6 @@
 
   .folder-item { display: flex; align-items: center; gap: 8px; padding: 12px 14px; cursor: pointer; font-size: 15px; border-left: 3px solid transparent; color: var(--text2); user-select: none; transition: background .15s, color .15s, border-color .15s; border-radius: 0 8px 8px 0; }
   .folder-item:hover { background: var(--bg3); color: var(--text); }
-  .feed-star { background: none; border: none; cursor: pointer; font-size: 14px; padding: 2px 4px; flex-shrink: 0; opacity: 0.9; color: var(--accent); }
-  .feed-star:active { transform: scale(1.3); }
   .folder-item.active { background: var(--bg3); border-left-color: var(--accent); color: var(--text); }
   .folder-item.special { color: var(--purple); }
   .folder-item.special.active { border-left-color: var(--purple); }
@@ -419,17 +417,6 @@ let audioOnlyMode = false; // mode "audio seul" persistant pour les vidéos
 let unreadOnly = false; // filtre "non lus" global pour les dossiers de podcasts
 let expandedFolders = new Set(); // dossiers dépliés
 
-// ─── Podcasts suivis (⭐) : on mémorise les URL des flux suivis ───
-const FOLLOWED_KEY = 'mediastream_followed_v1';
-let followedFeeds = new Set(JSON.parse(localStorage.getItem(FOLLOWED_KEY) || '[]'));
-function isFollowed(url) { return followedFeeds.has(url); }
-function toggleFollow(url) {
-  if (followedFeeds.has(url)) followedFeeds.delete(url);
-  else followedFeeds.add(url);
-  localStorage.setItem(FOLLOWED_KEY, JSON.stringify([...followedFeeds]));
-  renderSidebar();
-}
-
 // ═══════════════════════════════════════════
 // PERSISTANCE
 // ═══════════════════════════════════════════
@@ -762,7 +749,6 @@ function renderSidebar() {
 
   // Dossiers spéciaux
   list.appendChild(makeSpecialItem('recents', '🕒', 'Récents', currentView?.type === 'recents'));
-  list.appendChild(makeSpecialItem('followed', '⭐', 'Suivis', currentView?.type === 'followed'));
   list.appendChild(makeSpecialItem('queue', '▶', 'File d\'attente', currentView?.type === 'queue'));
   list.appendChild(makeSpecialItem('offline', '📥', 'Téléchargés', currentView?.type === 'offline'));
   list.appendChild(makeSpecialItem('verify', '🩺', 'Vérifier les podcasts', currentView?.type === 'verify'));
@@ -803,8 +789,7 @@ function renderSidebar() {
         sub.style.fontSize = '12px';
         sub.innerHTML = `
           <span class="folder-icon" style="font-size:11px;">🎙</span>
-          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">${escapeHTML(feed.name)}</span>
-          <button class="feed-star" onclick="event.stopPropagation();toggleFollow('${escapeAttr(feed.url)}')" title="${isFollowed(feed.url) ? 'Ne plus suivre' : 'Suivre ce podcast'}">${isFollowed(feed.url) ? '⭐' : '☆'}</button>`;
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHTML(feed.name)}</span>`;
         sub.onclick = () => selectFeed(f.id, idx);
         list.appendChild(sub);
       });
@@ -829,7 +814,7 @@ function renderDriveSidebar() {
     const isActive = currentView?.type === 'b2' && currentView.idx === idx;
     div.className = 'folder-item' + (isActive ? ' active' : '');
     div.innerHTML = `
-      <span class="folder-icon">🎵</span>
+      <span class="folder-icon">▶️</span>
       <span>${escapeHTML(d.name)}</span>
       <span class="folder-actions">
         <button class="folder-action-btn" onclick="event.stopPropagation();showB2Manager(${idx})" title="Renommer">⚙</button>
@@ -885,7 +870,6 @@ function makeSpecialItem(type, icon, name, active) {
   div.innerHTML = `<span class="folder-icon">${icon}</span><span>${name}</span>${countBadge}`;
   div.onclick = () => {
     if (type === 'recents') showRecents();
-    else if (type === 'followed') showFollowed();
     else if (type === 'queue') showQueue();
     else if (type === 'offline') showOffline();
     else if (type === 'offline') showOffline();
@@ -987,67 +971,6 @@ async function loadSingleFeed(feed) {
     list.innerHTML = `<div class="error-text" style="color:var(--red);padding:12px;">Flux indisponible : ${escapeHTML(e.message)}</div>`;
     document.getElementById('content-badge').style.display = 'none';
   }
-}
-
-// ─── Onglet « ⭐ Suivis » : épisodes récents des podcasts suivis, tous flux mélangés, triés par date ───
-async function showFollowed() {
-  currentView = { type: 'followed' };
-  closeSidebar();
-  renderSidebar();
-  document.getElementById('content-title').textContent = '⭐ Suivis';
-  document.getElementById('btn-add-feed').style.display = 'none';
-  document.getElementById('btn-reset-read').style.display = 'none';
-  const badge = document.getElementById('content-badge');
-  const list = document.getElementById('episodes-list');
-
-  // Rassemble tous les flux suivis à partir des dossiers (par leur URL)
-  const feeds = [];
-  folders.forEach(f => (f.feeds || []).forEach(fd => { if (followedFeeds.has(fd.url)) feeds.push(fd); }));
-
-  if (!feeds.length) {
-    badge.style.display = 'none';
-    list.innerHTML = `<div class="empty-text" style="line-height:1.7;">Aucun podcast suivi pour l'instant.<br><br>Ajoute des podcasts à cet onglet en touchant l'étoile ☆ à côté d'un podcast dans le menu de gauche (déplie un dossier pour voir ses podcasts).</div>`;
-    return;
-  }
-
-  list.innerHTML = `<div class="loading-text">Chargement des podcasts suivis<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>`;
-  currentEpisodes = [];
-
-  const results = await Promise.allSettled(feeds.map(f => loadFeed(f)));
-  let allEps = [];
-  const failed = [];
-  results.forEach((r, i) => {
-    if (r.status === 'fulfilled') allEps = allEps.concat(r.value);
-    else failed.push(feeds[i].name);
-  });
-
-  if (currentView?.type !== 'followed') return; // l'utilisateur a changé de vue entre-temps
-
-  if (allEps.length === 0) {
-    list.innerHTML = `<div class="empty-text" style="line-height:1.7;">⚠️ Impossible de charger les podcasts suivis.<br>Souvent dû à une connexion lente ou instable.<br><br><button class="btn-ok" onclick="showFollowed()" style="padding:10px 20px;">↻ Réessayer</button></div>`;
-    badge.style.display = 'none';
-    return;
-  }
-
-  // Fenêtre « récents » : 30 derniers jours, mais on garde au moins le dernier épisode de chaque podcast suivi
-  const now = Date.now();
-  const THIRTY_DAYS = 30 * 24 * 3600 * 1000;
-  const recent = allEps.filter(e => { const d = new Date(e.date || 0).getTime(); return d && (now - d) < THIRTY_DAYS; });
-  // Dernier épisode par podcast (pour ne jamais laisser un flux vide)
-  const latestPerFeed = {};
-  allEps.forEach(e => {
-    const d = new Date(e.date || 0).getTime();
-    if (!latestPerFeed[e.feed] || d > new Date(latestPerFeed[e.feed].date || 0).getTime()) latestPerFeed[e.feed] = e;
-  });
-  const merged = [...recent];
-  Object.values(latestPerFeed).forEach(e => { if (!merged.some(x => x.url === e.url)) merged.push(e); });
-  merged.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-
-  currentEpisodes = merged;
-  renderEpisodes(merged);
-  badge.textContent = merged.length + ' épisodes · ' + feeds.length + ' suivis' + (failed.length ? ` · ${failed.length} ⨯` : '');
-  badge.className = 'badge badge-blue';
-  badge.style.display = 'inline';
 }
 
 function showRecents() {
@@ -1707,29 +1630,15 @@ function showYouTube() {
     </div>`;
 }
 
-// Ouvre la page de résultats YouTube dans le navigateur externe (Brave si défini par défaut sur Android)
-// Ouvre les résultats YouTube en FORÇANT le navigateur par défaut (Brave),
-// pour contourner l'appli YouTube et les "Custom Tabs" qui court-circuitent le navigateur.
-let ytForceBrowser = true;
-
+// Ouvre la recherche YouTube dans le navigateur par défaut d'Android (Brave chez toi).
+// On utilise une navigation https normale : Android la route vers le navigateur
+// défini par défaut, sans sélecteur. (Un intent:// forcerait au contraire la
+// fenêtre "Choisir activité", c'est pourquoi on ne l'utilise plus.)
 function openYouTubeSearch() {
   const input = document.getElementById('yt-search-input');
   const q = (input?.value || '').trim();
   if (!q) return;
   const httpsUrl = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(q);
-
-  if (ytForceBrowser) {
-    // Intent Android ciblant explicitement une VUE navigateur (catégorie BROWSABLE) :
-    // Android le route alors vers le navigateur par défaut (Brave), pas vers l'appli YouTube.
-    const intent = 'intent://www.youtube.com/results?search_query=' + encodeURIComponent(q) +
-      '#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end';
-    try {
-      window.location.href = intent;
-      // Si l'intent échoue (pas sur Android, ou navigateur qui ne suit pas), repli après un court délai
-      setTimeout(() => { try { window.open(httpsUrl, '_blank', 'noopener'); } catch(e){} }, 600);
-      return;
-    } catch(e) { /* repli ci-dessous */ }
-  }
   window.open(httpsUrl, '_blank', 'noopener');
 }
 
@@ -2064,15 +1973,25 @@ async function showOffline() {
   try { metas = await offlineListMeta(); } catch(e) {}
   const badge = document.getElementById('content-badge');
 
+  const sealBox = `
+    <div style="padding:10px 12px;margin-bottom:4px;border-bottom:1px solid var(--border);">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:6px;">🦭 Télécharger depuis YouTube (via Seal)</div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <input id="seal-url" type="url" inputmode="url" placeholder="Colle un lien YouTube…" style="flex:1;min-width:0;background:var(--bg4);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px 10px;font-size:13px;">
+        <button class="ep-icon-btn" onclick="pasteYtLink()" title="Coller le lien">📋</button>
+        <button class="btn-cancel" style="font-size:13px;padding:8px 12px;white-space:nowrap;" onclick="sendToSeal()">Envoyer</button>
+      </div>
+    </div>`;
+
   if (!metas.length) {
-    list.innerHTML = '<div class="empty-text">Aucun fichier hors-ligne.<br><br>Touche 📥 sur un épisode ou une chanson pour l\'enregistrer sur ton téléphone et l\'écouter sans réseau.</div>';
+    list.innerHTML = sealBox + '<div class="empty-text">Aucun fichier hors-ligne.<br><br>Touche 📥 sur un épisode ou une chanson pour l\'enregistrer sur ton téléphone et l\'écouter sans réseau.</div>';
     badge.style.display = 'none';
     return;
   }
 
   metas.sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
   const totalMo = (metas.reduce((s, m) => s + (m.size || 0), 0) / 1048576).toFixed(0);
-  list.innerHTML = `
+  list.innerHTML = sealBox + `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;">
       <span style="font-size:12px;color:var(--text3);">💾 ${totalMo} Mo sur l'appareil</span>
       <button class="btn-cancel" style="font-size:12px;padding:6px 10px;" onclick="clearAllOffline()">🗑 Tout supprimer</button>
@@ -2126,6 +2045,37 @@ async function showOffline() {
   badge.style.display = 'inline';
 }
 
+// Colle le lien du presse-papier dans le champ Seal
+async function pasteYtLink() {
+  try {
+    const t = await navigator.clipboard.readText();
+    const inp = document.getElementById('seal-url');
+    if (inp && t) inp.value = t.trim();
+  } catch(e) {
+    toast('Colle le lien à la main (presse-papier refusé)');
+  }
+}
+
+// Envoie le lien à Seal via le partage Android (Seal = cible de partage → téléchargement rapide)
+async function sendToSeal() {
+  const inp = document.getElementById('seal-url');
+  const url = (inp?.value || '').trim();
+  if (!url) { toast('Colle d\'abord un lien'); return; }
+  if (!/^https?:\/\//i.test(url)) { toast('Lien invalide'); return; }
+  if (navigator.share) {
+    try {
+      await navigator.share({ url, title: 'Télécharger via Seal' });
+      if (inp) inp.value = '';
+    } catch(e) {
+      if (e.name !== 'AbortError') toast('Partage impossible');
+    }
+  } else {
+    // Repli (desktop, pas de partage natif) : on copie le lien
+    try { await navigator.clipboard.writeText(url); toast('Lien copié — colle-le dans Seal'); }
+    catch(e) { toast('Copie le lien manuellement dans Seal'); }
+  }
+}
+
 function renderEpisodes(eps) {
   const list = document.getElementById('episodes-list');
   list.innerHTML = '';
@@ -2169,7 +2119,7 @@ function renderEpisodes(eps) {
         </div>
       </div>
       <div class="ep-actions-right">${infoBtn}${dlBtn}${queueBtn}${removeBtn}</div>`;
-    div.onclick = () => (isRecentsView || currentView?.type === 'followed') ? playFromRecents(ep) : playEpisode(ep, div);
+    div.onclick = () => isRecentsView ? playFromRecents(ep) : playEpisode(ep, div);
     list.appendChild(div);
   });
   // Si le filtre "non lus" a tout masqué
@@ -2233,7 +2183,7 @@ function selectB2(idx) {
   closeDriveSidebar();
   const d = b2Folders[idx];
   renderSidebar();
-  document.getElementById('content-title').textContent = '🎵 ' + d.name;
+  document.getElementById('content-title').textContent = '▶️ ' + d.name;
   document.getElementById('btn-add-feed').style.display = 'none';
   document.getElementById('btn-reset-read').style.display = 'inline-block';
   loadB2Folder(d, idx);
@@ -2429,37 +2379,30 @@ async function playEpisode(ep, el, fromQueue = false) {
   };
   const onLoadError = () => {
     if (activeEpisode !== ep) return; // on a changé de morceau entre-temps
-    // Jusqu'à 4 nouvelles tentatives automatiques avant d'abandonner ce morceau
-    if (!ep.isRadio && _retries < 4) {
+    // Nouvelle tentative automatique (équivalent du « deuxième clic » qui fonctionne) : 2 essais max
+    if (!ep.isRadio && _retries < 2) {
       _retries++;
       const status = document.getElementById('player-status');
-      if (status) { status.className = 'player-status'; status.textContent = '⋯ ESSAI ' + _retries + '/4'; status.style.color = ''; }
+      if (status) { status.className = 'player-status'; status.textContent = '⋯ NOUVEL ESSAI'; status.style.color = ''; }
       setTimeout(() => {
         if (activeEpisode !== ep) return;
         _started = false;
         attachStart();
         activeMedia.addEventListener('error', onLoadError, { once: true });
-        // Anti-cache : une URL légèrement différente force une nouvelle connexion propre
-        const sep = ep.url.includes('?') ? '&' : '?';
-        activeMedia.src = ep.isB2 ? (ep.url + sep + 'r=' + Date.now()) : ep.url;
         activeMedia.load();
-      }, 300 * _retries); // attente croissante : 300, 600, 900, 1200 ms
+      }, 400);
       return;
     }
-    // Échec après tous les essais : on passe au morceau suivant (si lecture de liste/aléatoire)
+    // Échec définitif : on affiche la nature précise du problème
     const status = document.getElementById('player-status');
-    const err = activeMedia.error;
-    const codes = { 1: 'ABORT', 2: 'RÉSEAU', 3: 'DÉCODAGE', 4: 'SOURCE' };
-    const code = err ? (codes[err.code] || err.code) : '?';
-    console.warn('[Lecture échec définitif]', ep.title, '| code:', code, '| src:', activeMedia.src);
-    const hasNext = (shuffleMode || (currentEpisodes && currentEpisodes.length > 1)) && !ep.isRadio;
-    if (hasNext) {
-      if (status) { status.className = 'player-status'; status.textContent = '⏭ SUIVANT'; status.style.color = 'var(--red)'; }
-      setTimeout(() => { if (activeEpisode === ep) playNext(); }, 900);
-    } else if (status) {
+    if (status) {
+      const err = activeMedia.error;
+      const codes = { 1: 'ABORT', 2: 'RÉSEAU', 3: 'DÉCODAGE', 4: 'SOURCE' };
+      const code = err ? (codes[err.code] || err.code) : '?';
       status.className = 'player-status idle';
       status.textContent = '⚠ ' + code;
       status.style.color = 'var(--red)';
+      console.warn('[Lecture erreur]', ep.title, '| code:', code, '| src:', activeMedia.src);
     }
   };
   attachStart();
@@ -2485,9 +2428,6 @@ async function playEpisode(ep, el, fromQueue = false) {
     navigator.mediaSession.setActionHandler('seekbackward', e => activeMedia.currentTime = Math.max(0, activeMedia.currentTime - (e.seekOffset || getAppSettings().seekBack)));
     navigator.mediaSession.setActionHandler('seekforward', e => activeMedia.currentTime = Math.min(activeMedia.duration||Infinity, activeMedia.currentTime + (e.seekOffset || getAppSettings().seekFwd)));
     try { navigator.mediaSession.setActionHandler('seekto', e => { activeMedia.currentTime = e.seekTime; }); } catch(e) {}
-    // Indique à Android que la lecture est active : c'est ce qui l'empêche de suspendre
-    // l'app quand l'écran est éteint, y compris au passage d'un morceau à l'autre.
-    try { navigator.mediaSession.playbackState = 'playing'; } catch(e) {}
   }
 }
 
@@ -2508,8 +2448,8 @@ async function playEpisode(ep, el, fromQueue = false) {
   m.addEventListener('durationchange', () => { if (m === activeMedia) updateSeekBar(); });
   m.addEventListener('loadedmetadata', () => { if (m === activeMedia) updateSeekBar(); });
   m.addEventListener('progress', () => { if (m === activeMedia) updateSeekBar(); });
-  m.addEventListener('play', () => { if (m === activeMedia) { updatePlayPauseIcon(); try { navigator.mediaSession.playbackState = 'playing'; } catch(e){} } });
-  m.addEventListener('pause', () => { if (m === activeMedia) { updatePlayPauseIcon(); try { navigator.mediaSession.playbackState = 'paused'; } catch(e){} } });
+  m.addEventListener('play', () => { if (m === activeMedia) updatePlayPauseIcon(); });
+  m.addEventListener('pause', () => { if (m === activeMedia) updatePlayPauseIcon(); });
   m.addEventListener('timeupdate', () => {
     if (m === activeMedia) updateSeekBar();
     if (!activeEpisode || activeEpisode.isRadio || m !== activeMedia) return;
@@ -2524,9 +2464,6 @@ async function playEpisode(ep, el, fromQueue = false) {
   m.addEventListener('ended', () => {
     if (m !== activeMedia) return;
     updateSeekBar(); updatePlayPauseIcon();
-    // On maintient l'état "en lecture" pendant le chargement du morceau suivant :
-    // sinon Android peut suspendre l'app dans ce court intervalle, écran éteint.
-    try { navigator.mediaSession.playbackState = 'playing'; } catch(e) {}
     // Marque l'épisode comme écouté (badge ✓ Lu)
     if (activeEpisode && !activeEpisode.isRadio) markFinished(activeEpisode.url);
     // Minuteur "fin d'épisode" : on stoppe ici
@@ -3272,6 +3209,7 @@ function deleteFolder(folderId) {
 async function exportData() {
   const data = {
     folders,
+    b2Folders,
     driveFolders,
     history: getHistory(),
     positions: getPositions(),
@@ -3319,6 +3257,7 @@ function importData(e) {
       if (Array.isArray(data)) { folders = data; } // ancien format
       else {
         if (data.folders) folders = data.folders;
+        if (data.b2Folders) b2Folders = data.b2Folders;
         if (data.driveFolders) driveFolders = data.driveFolders;
         if (data.history) localStorage.setItem(HISTORY_KEY, JSON.stringify(data.history));
         if (data.positions) localStorage.setItem(POSITION_KEY, JSON.stringify(data.positions));
