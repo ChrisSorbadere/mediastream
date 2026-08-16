@@ -2393,8 +2393,21 @@ async function playEpisode(ep, el, fromQueue = false) {
     const isShortSong = (ep.isDrive || ep.isB2) && activeMedia.duration && activeMedia.duration < 600;
     if (!ep.isRadio && !isShortSong) {
       const saved = getPosition(ep.url);
-      if (saved > 5 && activeMedia.duration && saved < activeMedia.duration - 10) {
-        activeMedia.currentTime = saved;
+      if (saved > 5) {
+        const applySaved = () => {
+          if (activeEpisode !== ep) return; // épisode changé entre-temps : on ignore
+          const d = activeMedia.duration;
+          // Reprend si la durée est inconnue (fréquent pour l'audio local m4a/opus)
+          // ou si la position reste avant la fin ; évite un re-seek inutile.
+          if ((!isFinite(d) || saved < d - 5) && Math.abs(activeMedia.currentTime - saved) > 2) {
+            try { activeMedia.currentTime = saved; } catch(e) {}
+          }
+        };
+        applySaved();
+        // Durée pas encore connue au démarrage : on retente dès qu'elle arrive
+        if (!isFinite(activeMedia.duration)) {
+          activeMedia.addEventListener('durationchange', applySaved, { once: true });
+        }
       }
     }
     activeMedia.play().catch(e => console.warn('Lecture refusée:', e));
