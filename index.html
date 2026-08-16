@@ -1982,7 +1982,7 @@ async function showOffline() {
         <button class="btn-cancel" style="font-size:13px;padding:8px 12px;white-space:nowrap;" onclick="sendToSeal()">Envoyer</button>
       </div>
       <div style="margin-top:10px;padding-top:8px;border-top:1px dashed var(--border);">
-        <input type="file" id="import-media-file" accept="audio/*,video/*,.m4a,.mp3,.opus,.aac,.ogg,.flac,.wav,.webm,.mp4,.mkv,.mov" style="display:none;" onchange="importLocalMedia(event)">
+        <input type="file" id="import-media-file" accept="*/*" style="display:none;" onchange="importLocalMedia(event)">
         <button class="btn-cancel" style="font-size:13px;padding:8px 12px;width:100%;" onclick="document.getElementById('import-media-file').click()">📂 Importer un fichier du téléphone (Seal…)</button>
       </div>
     </div>`;
