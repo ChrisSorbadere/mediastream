@@ -1981,6 +1981,10 @@ async function showOffline() {
         <button class="ep-icon-btn" onclick="pasteYtLink()" title="Coller le lien">📋</button>
         <button class="btn-cancel" style="font-size:13px;padding:8px 12px;white-space:nowrap;" onclick="sendToSeal()">Envoyer</button>
       </div>
+      <div style="margin-top:10px;padding-top:8px;border-top:1px dashed var(--border);">
+        <input type="file" id="import-media-file" accept="audio/*,video/*,.m4a,.mp3,.opus,.aac,.ogg,.flac,.wav,.webm,.mp4,.mkv,.mov" style="display:none;" onchange="importLocalMedia(event)">
+        <button class="btn-cancel" style="font-size:13px;padding:8px 12px;width:100%;" onclick="document.getElementById('import-media-file').click()">📂 Importer un fichier du téléphone (Seal…)</button>
+      </div>
     </div>`;
 
   if (!metas.length) {
@@ -2073,6 +2077,28 @@ async function sendToSeal() {
     // Repli (desktop, pas de partage natif) : on copie le lien
     try { await navigator.clipboard.writeText(url); toast('Lien copié — colle-le dans Seal'); }
     catch(e) { toast('Copie le lien manuellement dans Seal'); }
+  }
+}
+
+// Importe un fichier du téléphone (ex : téléchargé par Seal) dans le stockage interne de l'app
+async function importLocalMedia(e) {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = ''; // reset : permet de réimporter le même fichier plus tard
+  if (!file) return;
+  const name = file.name || 'Fichier importé';
+  const title = name.replace(/\.[^.]+$/, '');
+  const isVideo = (file.type && file.type.startsWith('video/')) || /\.(mp4|m4v|webm|mkv|mov)$/i.test(name);
+  const key = 'import:' + Date.now() + ':' + name;
+  try {
+    await offlineSave(key, {
+      title, feed: 'Importé', type: isVideo ? 'video' : '', url: key,
+      driveId: '', image: '', size: file.size, savedAt: Date.now(),
+    }, file);
+    toast('📂 Fichier importé');
+    renderSidebar();
+    showOffline();
+  } catch(err) {
+    toast('⚠️ Import impossible (stockage plein ?)');
   }
 }
 
