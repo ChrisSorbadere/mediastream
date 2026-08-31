@@ -660,6 +660,43 @@ function playFromQueue(idx) {
   if (currentView?.type === 'queue') showQueue();
 }
 
+// Diagnostic réseau : distingue un vrai blocage (timeout) d'une simple erreur.
+// Utile en Espagne : les blocages LaLiga coupent les IP Cloudflare les jours de match.
+function isNetworkBlocked(err) {
+  const m = ((err && err.message) || '').toLowerCase();
+  return /timed out|timeout|failed to fetch|network|load failed|aborted/.test(m);
+}
+
+// Bloc d'erreur enrichi : message clair + bouton pour lancer Proton VPN
+function errorBlock(err, retryHandler) {
+  const msg = escapeHTML((err && err.message) || 'Erreur inconnue');
+  let html = `<div class="error-text" style="color:var(--red);padding:12px;">${msg}`;
+  if (isNetworkBlocked(err)) {
+    html += `<div style="margin-top:12px;padding:10px;background:var(--bg4);border-radius:8px;color:var(--text2);font-size:13px;line-height:1.6;">
+      🔒 Connexion interrompue avant d'atteindre le serveur.<br>
+      Probable blocage opérateur (LaLiga, jours de match).<br>
+      Active ton VPN, ou passe sur ta SIM française.
+      <div style="margin-top:10px;"><button class="btn-cancel" style="font-size:13px;padding:8px 12px;" onclick="openProtonVPN()">🛡 Ouvrir Proton VPN</button></div>
+    </div>`;
+  }
+  if (retryHandler) {
+    html += `<div style="margin-top:10px;"><button class="btn-cancel" onclick="${retryHandler}">↻ Réessayer</button></div>`;
+  }
+  return html + '</div>';
+}
+
+// Lance l'application Proton VPN (Android). Le VPN lui-même ne peut pas être
+// activé depuis une page web : seul le système peut établir le tunnel.
+function openProtonVPN() {
+  const pkg = 'ch.protonvpn.android';
+  try {
+    window.location.href = 'intent://#Intent;scheme=protonvpn;package=' + pkg +
+      ';S.browser_fallback_url=' + encodeURIComponent('https://play.google.com/store/apps/details?id=' + pkg) + ';end';
+  } catch(e) {
+    toast('Ouvre Proton VPN à la main');
+  }
+}
+
 // Petit toast de confirmation
 let toastTimer = null;
 function toast(msg) {
@@ -968,7 +1005,7 @@ async function loadSingleFeed(feed) {
     badge.style.display = 'inline';
     badge.className = 'badge badge-blue';
   } catch(e) {
-    list.innerHTML = `<div class="error-text" style="color:var(--red);padding:12px;">Flux indisponible : ${escapeHTML(e.message)}</div>`;
+    list.innerHTML = errorBlock(e);
     document.getElementById('content-badge').style.display = 'none';
   }
 }
@@ -2257,7 +2294,7 @@ async function loadB2Folder(folder, idx) {
     b2FolderCache[prefix] = eps;
     render(eps);
   } catch(e) {
-    list.innerHTML = `<div class="error-text" style="color:var(--red);padding:12px;">Erreur B2 : ${escapeHTML(e.message)}<br><br><button class="btn-cancel" onclick="selectB2(${idx})">↻ Réessayer</button></div>`;
+    list.innerHTML = errorBlock(e, `selectB2(${idx})`);
   }
 }
 
