@@ -616,7 +616,7 @@ function addToQueue(ep) {
     return;
   }
   // On stocke une version légère de l'épisode
-  q.push({ title: ep.title, url: ep.url, feed: ep.feed, type: ep.type, duration: ep.duration, image: ep.image, description: ep.description, date: ep.date });
+  q.push({ title: ep.title, url: ep.url, feed: ep.feed, type: ep.type, duration: ep.duration, image: ep.image, description: ep.description, date: ep.date, isB2: ep.isB2 || undefined, isDrive: ep.isDrive || undefined, driveId: ep.driveId || undefined });
   saveQueue(q);
   toast('Ajouté à la file ▶');
 }
@@ -2345,8 +2345,13 @@ function togglePlayerCollapse() {
 async function playEpisode(ep, el, fromQueue = false) {
   if (activeEpisodeEl) activeEpisodeEl.classList.remove('playing');
   if (el) { el.classList.add('playing'); activeEpisodeEl = el; }
+  const token = ++playToken; // identifie cette lecture (les événements des lectures précédentes sont ignorés)
+  // Les éléments de la file/historique peuvent avoir perdu le drapeau isB2 : on le retrouve d'après l'URL
+  if (!ep.isB2 && isB2Url(ep.url)) ep.isB2 = true;
+  pruneB2Cache([ep.url]); // libère la mémoire des morceaux B2 qui ne servent plus
   activeEpisode = ep;
   playingFromQueue = fromQueue; // mémorise si la lecture vient de la file d'attente
+  const _pb = document.getElementById('playback-blocked'); if (_pb) _pb.remove();
 
   // Affiche le lecteur (masqué au démarrage tant que rien n'est lu)
   const playerEl = document.getElementById('player');
@@ -2379,34 +2384,8 @@ async function playEpisode(ep, el, fromQueue = false) {
     activeMedia = audio;
   }
 
-  // Fichier disponible hors-ligne ? Lecture locale, sans réseau
-  let playedFromOffline = false;
-  const _offKey = ep.driveId || ep.url;
-  if (!ep.isRadio && offlineKeys.has(_offKey)) {
-    try {
-      const blob = await offlineGetBlob(_offKey);
-      if (blob) {
-        if (window._driveBlobUrl) { try { URL.revokeObjectURL(window._driveBlobUrl); } catch(e){} window._driveBlobUrl = null; }
-        const bu = URL.createObjectURL(blob);
-        window._driveBlobUrl = bu;
-        activeMedia.src = bu;
-        playedFromOffline = true;
-      }
-    } catch(e) { /* lecture réseau en secours */ }
-  }
-
-  // Détermine la source du flux selon le type
-  if (playedFromOffline) {
-    // rien : la source locale est déjà en place
-  } else if (ep.isRadio) {
-    activeMedia.src = ep.url; // radio en direct
-  } else if (ep.isB2) {
-    activeMedia.src = ep.url; // fichier B2 : URL du worker, déjà prête (ni jeton ni proxy)
-    activeMedia.load();       // force un rechargement propre (fiabilise le démarrage en streaming)
-  } else {
-    activeMedia.src = PROXY + encodeURIComponent(ep.url); // podcasts via proxy
-  }
-
+  // Titre, pochette, historique et écran verrouillé AVANT le chargement
+  // (le téléchargement d'un morceau B2 peut prendre 1 à 3 s)
   document.getElementById('player-title').textContent = ep.title;
   document.getElementById('player-sub').textContent = ep.feed || '';
   setPlayerArt(ep, isVideo);
@@ -2418,71 +2397,6 @@ async function playEpisode(ep, el, fromQueue = false) {
 
   // Pas d'historique pour les radios (sinon ça pollue les Récents)
   if (!ep.isRadio) addToHistory(ep);
-
-  let _started = false;
-  let _retries = 0;
-  const onceLoaded = () => {
-    if (_started) return; // les deux événements peuvent se déclencher : on ne démarre qu'une fois
-    _started = true;
-    // Pas de reprise pour les radios (flux live)
-    // Pas de reprise pour les chansons courtes (< 10 min) Drive OU B2 : on les relance du début.
-    // (Se positionner dans un flux au chargement provoque des blocages sur certains fichiers.)
-    const isShortSong = (ep.isDrive || ep.isB2) && activeMedia.duration && activeMedia.duration < 600;
-    if (!ep.isRadio && !isShortSong) {
-      const saved = getPosition(ep.url);
-      if (saved > 5) {
-        const applySaved = () => {
-          if (activeEpisode !== ep) return; // épisode changé entre-temps : on ignore
-          const d = activeMedia.duration;
-          // Reprend si la durée est inconnue (fréquent pour l'audio local m4a/opus)
-          // ou si la position reste avant la fin ; évite un re-seek inutile.
-          if ((!isFinite(d) || saved < d - 5) && Math.abs(activeMedia.currentTime - saved) > 2) {
-            try { activeMedia.currentTime = saved; } catch(e) {}
-          }
-        };
-        applySaved();
-        // Durée pas encore connue au démarrage : on retente dès qu'elle arrive
-        if (!isFinite(activeMedia.duration)) {
-          activeMedia.addEventListener('durationchange', applySaved, { once: true });
-        }
-      }
-    }
-    activeMedia.play().catch(e => console.warn('Lecture refusée:', e));
-  };
-  const attachStart = () => {
-    activeMedia.addEventListener('loadedmetadata', onceLoaded, { once: true });
-    activeMedia.addEventListener('canplay', onceLoaded, { once: true });
-  };
-  const onLoadError = () => {
-    if (activeEpisode !== ep) return; // on a changé de morceau entre-temps
-    // Nouvelle tentative automatique (équivalent du « deuxième clic » qui fonctionne) : 2 essais max
-    if (!ep.isRadio && _retries < 2) {
-      _retries++;
-      const status = document.getElementById('player-status');
-      if (status) { status.className = 'player-status'; status.textContent = '⋯ NOUVEL ESSAI'; status.style.color = ''; }
-      setTimeout(() => {
-        if (activeEpisode !== ep) return;
-        _started = false;
-        attachStart();
-        activeMedia.addEventListener('error', onLoadError, { once: true });
-        activeMedia.load();
-      }, 400);
-      return;
-    }
-    // Échec définitif : on affiche la nature précise du problème
-    const status = document.getElementById('player-status');
-    if (status) {
-      const err = activeMedia.error;
-      const codes = { 1: 'ABORT', 2: 'RÉSEAU', 3: 'DÉCODAGE', 4: 'SOURCE' };
-      const code = err ? (codes[err.code] || err.code) : '?';
-      status.className = 'player-status idle';
-      status.textContent = '⚠ ' + code;
-      status.style.color = 'var(--red)';
-      console.warn('[Lecture erreur]', ep.title, '| code:', code, '| src:', activeMedia.src);
-    }
-  };
-  attachStart();
-  activeMedia.addEventListener('error', onLoadError, { once: true });
 
   if ('mediaSession' in navigator) {
     const metaInit = {
@@ -2505,7 +2419,375 @@ async function playEpisode(ep, el, fromQueue = false) {
     navigator.mediaSession.setActionHandler('seekforward', e => activeMedia.currentTime = Math.min(activeMedia.duration||Infinity, activeMedia.currentTime + (e.seekOffset || getAppSettings().seekFwd)));
     try { navigator.mediaSession.setActionHandler('seekto', e => { activeMedia.currentTime = e.seekTime; }); } catch(e) {}
   }
+
+  // Fichier disponible hors-ligne ? Lecture locale, sans réseau
+  let playedFromOffline = false;
+  const _offKey = ep.driveId || ep.url;
+  if (!ep.isRadio && offlineKeys.has(_offKey)) {
+    try {
+      const blob = await offlineGetBlob(_offKey);
+      if (token !== playToken) return; // autre morceau lancé entre-temps
+      if (blob) {
+        if (window._driveBlobUrl) { try { URL.revokeObjectURL(window._driveBlobUrl); } catch(e){} window._driveBlobUrl = null; }
+        const bu = URL.createObjectURL(blob);
+        window._driveBlobUrl = bu;
+        activeMedia.src = bu;
+        playedFromOffline = true;
+      }
+    } catch(e) { /* lecture réseau en secours */ }
+  }
+
+  // Détermine la source du flux selon le type
+  let playedFromMemory = false; // true = morceau B2 entièrement téléchargé en mémoire (aucune coupure possible)
+  if (playedFromOffline) {
+    // rien : la source locale est déjà en place
+  } else if (ep.isRadio) {
+    activeMedia.src = ep.url; // radio en direct
+  } else if (ep.isB2 && !isVideo) {
+    // Morceau B2 : téléchargement COMPLET en mémoire avant lecture (reprise automatique
+    // en cas de coupure). Les gros fichiers (> B2_MAX_BLOB) passent en streaming classique.
+    pruneB2Cache([ep.url]);
+    // Coupe le morceau précédent pendant le téléchargement
+    try { activeMedia.pause(); activeMedia.removeAttribute('src'); activeMedia.load(); } catch(e) {}
+    setPlayerStatus('⋯ TÉLÉCHARGE');
+    const entry = getB2Blob(ep);
+    entry.onProgress = (r, t) => {
+      if (token === playToken && t) setPlayerStatus('⋯ ' + Math.min(99, Math.round(r / t * 100)) + ' %');
+    };
+    try {
+      await entry.promise;
+      if (token !== playToken) return;
+      activeMedia.src = entry.objUrl;
+      playedFromMemory = true;
+    } catch(e) {
+      if (token !== playToken) return;
+      // Trop gros ou téléchargement impossible : streaming classique (avec relances)
+      activeMedia.src = ep.url;
+      activeMedia.load();
+    }
+  } else if (ep.isB2) {
+    activeMedia.src = ep.url; // vidéo B2 : streaming via le worker
+    activeMedia.load();
+  } else {
+    activeMedia.src = PROXY + encodeURIComponent(ep.url); // podcasts via proxy
+  }
+
+  // ─── Démarrage, relances et passage au suivant ───
+  const RETRY_DELAYS = [1000, 2000, 4000]; // 3 nouveaux essais, de plus en plus espacés
+  const LOAD_TIMEOUT = 20000;              // pas de son au bout de 20 s → nouvel essai
+  const isMusic = ep.isB2 || ep.isDrive;   // la musique passe au morceau suivant en cas d'échec
+  const cur = { token, ep, retries: 0, started: false, resumeAt: 0, fromMemory: playedFromMemory };
+  currentPlayback = cur;
+
+  const seekTo = (pos) => {
+    const apply = () => {
+      if (token !== playToken) return;
+      const d = activeMedia.duration;
+      // Reprend si la durée est inconnue (fréquent pour l'audio local m4a/opus)
+      // ou si la position reste avant la fin ; évite un re-seek inutile.
+      if ((!isFinite(d) || pos < d - 5) && Math.abs(activeMedia.currentTime - pos) > 2) {
+        try { activeMedia.currentTime = pos; } catch(e) {}
+      }
+    };
+    apply();
+    // Durée pas encore connue au démarrage : on retente dès qu'elle arrive
+    if (!isFinite(activeMedia.duration)) {
+      activeMedia.addEventListener('durationchange', apply, { once: true });
+    }
+  };
+
+  const onceLoaded = () => {
+    if (token !== playToken || cur.started) return; // les deux événements peuvent se déclencher : on ne démarre qu'une fois
+    cur.started = true;
+    if (cur.resumeAt > 1) {
+      // Relance après coupure : on repart là où on en était (même pour une chanson courte)
+      seekTo(cur.resumeAt);
+    } else {
+      // Pas de reprise pour les radios (flux live)
+      // Pas de reprise pour les chansons courtes (< 10 min) Drive OU B2 : on les relance du début.
+      const isShortSong = (ep.isDrive || ep.isB2) && activeMedia.duration && activeMedia.duration < 600;
+      if (!ep.isRadio && !isShortSong) {
+        const saved = getPosition(ep.url);
+        if (saved > 5) seekTo(saved);
+      }
+    }
+    activeMedia.play().catch(e => console.warn('Lecture refusée:', e));
+    // Précharge le morceau suivant pendant l'écoute (uniquement si le morceau courant est en mémoire,
+    // pour ne pas partager la bande passante avec un streaming en cours)
+    if (cur.fromMemory || playedFromOffline) {
+      setTimeout(() => { if (token === playToken) preloadNextB2(); }, 3000);
+    }
+  };
+  const attachStart = () => {
+    activeMedia.addEventListener('loadedmetadata', onceLoaded, { once: true });
+    activeMedia.addEventListener('canplay', onceLoaded, { once: true });
+  };
+  // Garde-fou : si le morceau ne démarre pas en 20 s, on considère l'essai comme raté
+  const armLoadTimeout = () => {
+    if (ep.isRadio) return;
+    const attempt = cur.retries;
+    setTimeout(() => {
+      if (token === playToken && !cur.started && cur.retries === attempt) retryOrSkip('délai dépassé');
+    }, LOAD_TIMEOUT);
+  };
+  // Nouvel essai (en reprenant à la position atteinte), puis passage au suivant si tout échoue
+  const retryOrSkip = (reason) => {
+    if (token !== playToken) return;
+    const canRetry = !ep.isRadio && !cur.fromMemory && cur.retries < RETRY_DELAYS.length;
+    if (canRetry) {
+      const pos = activeMedia.currentTime;
+      if (pos > 1) cur.resumeAt = pos;
+      const delay = RETRY_DELAYS[cur.retries];
+      cur.retries++;
+      setPlayerStatus('⋯ NOUVEL ESSAI ' + cur.retries + '/' + RETRY_DELAYS.length);
+      console.warn('[Lecture] nouvel essai', cur.retries, '|', reason, '|', ep.title, '| reprise à', Math.round(cur.resumeAt), 's');
+      setTimeout(() => {
+        if (token !== playToken) return;
+        cur.started = false;
+        attachStart();
+        activeMedia.addEventListener('error', onLoadError, { once: true });
+        activeMedia.load();
+        armLoadTimeout();
+      }, delay);
+      return;
+    }
+    // Échec définitif : on affiche la nature précise du problème
+    const err = activeMedia.error;
+    const codes = { 1: 'ABORT', 2: 'RÉSEAU', 3: 'DÉCODAGE', 4: 'SOURCE' };
+    const code = err ? (codes[err.code] || err.code) : (reason === 'délai dépassé' || reason === 'blocage' ? 'RÉSEAU' : '?');
+    console.warn('[Lecture erreur]', ep.title, '| code:', code, '| raison:', reason, '| src:', activeMedia.src);
+    if (isMusic) { trackFailed(ep, code); return; }
+    setPlayerStatus('⚠ ' + code, 'idle', 'var(--red)');
+  };
+  const onLoadError = () => retryOrSkip('erreur');
+  cur.stalled = () => retryOrSkip('blocage');
+
+  attachStart();
+  activeMedia.addEventListener('error', onLoadError, { once: true });
+  armLoadTimeout();
 }
+
+// ═══════════════════════════════════════════
+// FIABILITÉ DE LA LECTURE (B2 surtout)
+// ═══════════════════════════════════════════
+var playToken = 0;           // incrémenté à chaque lecture : invalide les événements de l'ancien morceau
+var currentPlayback = null;  // état de la lecture en cours (relances, reprise…)
+var consecutiveFails = 0;    // morceaux ratés d'affilée (3 = blocage réseau probable)
+var shuffleNextPick = null;  // en aléatoire : morceau suivant choisi d'avance (pour le préchargement)
+const B2_MAX_BLOB = 30 * 1024 * 1024; // au-delà (~12 min en 320 kb/s) : streaming classique
+var b2BlobCache = new Map();          // url → { promise, objUrl, ctrl, onProgress }
+
+function setPlayerStatus(text, cls, color) {
+  const status = document.getElementById('player-status');
+  if (!status) return;
+  status.className = 'player-status' + (cls ? ' ' + cls : '');
+  status.textContent = text;
+  status.style.color = color || '';
+}
+
+function isB2Url(url) {
+  return typeof url === 'string' && url.startsWith(B2_BASE + '/b2/');
+}
+
+// Type MIME d'après l'extension (B2 renvoie parfois application/octet-stream)
+function mimeFromName(url) {
+  const ext = (decodeURIComponent(url).split('.').pop() || '').toLowerCase();
+  return { mp3: 'audio/mpeg', m4a: 'audio/mp4', aac: 'audio/aac', opus: 'audio/ogg', ogg: 'audio/ogg',
+           wav: 'audio/wav', flac: 'audio/flac' }[ext] || 'audio/mpeg';
+}
+
+// Téléchargement complet d'un fichier B2, avec reprise là où la coupure a eu lieu (en-tête Range).
+// 4 tentatives (immédiate, puis après 1 s, 2 s, 4 s). Un flux figé plus de 12 s est coupé et repris.
+async function fetchB2Blob(url, onProgress, outerSignal) {
+  const delays = [0, 1000, 2000, 4000];
+  let chunks = [], received = 0, total = 0, type = '', lastErr = null;
+  for (let attempt = 0; attempt < delays.length; attempt++) {
+    if (delays[attempt]) await new Promise(r => setTimeout(r, delays[attempt]));
+    if (outerSignal?.aborted) throw new Error('annulé');
+    const ctrl = new AbortController();
+    const onAbort = () => ctrl.abort();
+    outerSignal?.addEventListener('abort', onAbort);
+    let stallTimer = null;
+    const armStall = () => { clearTimeout(stallTimer); stallTimer = setTimeout(() => ctrl.abort(), 12000); };
+    try {
+      armStall();
+      const headers = received ? { Range: 'bytes=' + received + '-' } : {};
+      const resp = await fetch(url, { headers, signal: ctrl.signal, cache: 'no-store' });
+      if (!resp.ok) {
+        const e = new Error('HTTP ' + resp.status);
+        // 4xx (sauf 408/429) : inutile d'insister
+        if (resp.status >= 400 && resp.status < 500 && resp.status !== 408 && resp.status !== 429) e.fatal = true;
+        throw e;
+      }
+      // Le serveur a ignoré la reprise : on repart de zéro
+      if (received && resp.status !== 206) { chunks = []; received = 0; total = 0; }
+      if (!total) {
+        const cr = resp.headers.get('Content-Range'); // "bytes 1000-4999/5000"
+        const m = cr && cr.match(/\/(\d+)\s*$/);
+        total = m ? parseInt(m[1], 10) : (parseInt(resp.headers.get('Content-Length') || '0', 10) || 0);
+      }
+      if (total > B2_MAX_BLOB) { const e = new Error('trop gros'); e.fatal = true; throw e; }
+      const ct = resp.headers.get('Content-Type') || '';
+      if (ct && !/octet-stream/i.test(ct)) type = ct;
+      const reader = resp.body.getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        received += value.length;
+        armStall();
+        if (received > B2_MAX_BLOB) { const e = new Error('trop gros'); e.fatal = true; throw e; }
+        if (onProgress) onProgress(received, total);
+      }
+      clearTimeout(stallTimer);
+      if (total && received < total) throw new Error('téléchargement incomplet');
+      return new Blob(chunks, { type: type || mimeFromName(url) });
+    } catch (e) {
+      clearTimeout(stallTimer);
+      if (e.fatal || outerSignal?.aborted) throw e;
+      lastErr = e;
+    } finally {
+      outerSignal?.removeEventListener('abort', onAbort);
+    }
+  }
+  throw lastErr || new Error('téléchargement impossible');
+}
+
+// Cache mémoire des morceaux B2 (morceau courant + suivant préchargé)
+function getB2Blob(ep) {
+  let entry = b2BlobCache.get(ep.url);
+  if (entry) return entry;
+  entry = { ctrl: new AbortController(), objUrl: null, onProgress: null };
+  entry.promise = fetchB2Blob(ep.url, (r, t) => entry.onProgress && entry.onProgress(r, t), entry.ctrl.signal)
+    .then(blob => { entry.objUrl = URL.createObjectURL(blob); return entry; });
+  entry.promise.catch(() => { if (b2BlobCache.get(ep.url) === entry) b2BlobCache.delete(ep.url); });
+  b2BlobCache.set(ep.url, entry);
+  return entry;
+}
+
+// Libère la mémoire : garde uniquement les morceaux listés
+function pruneB2Cache(keepUrls) {
+  for (const [url, entry] of b2BlobCache) {
+    if (keepUrls.includes(url)) continue;
+    try { entry.ctrl.abort(); } catch(e) {}
+    if (entry.objUrl) { try { URL.revokeObjectURL(entry.objUrl); } catch(e) {} }
+    b2BlobCache.delete(url);
+  }
+}
+
+// Devine le morceau qui sera joué ensuite (même logique que l'enchaînement automatique)
+function peekNextEpisode() {
+  if (loopMode === 'one') return null;
+  const q = getQueue();
+  if (playingFromQueue && q.length) return q[0];
+  const idx = getCurrentIndex();
+  if (shuffleMode && currentEpisodes.length) {
+    if (!shuffleNextPick || !currentEpisodes.some(e => e.url === shuffleNextPick.url) || shuffleNextPick.url === activeEpisode?.url) {
+      let pick;
+      do { pick = Math.floor(Math.random() * currentEpisodes.length); }
+      while (currentEpisodes.length > 1 && currentEpisodes[pick].url === activeEpisode?.url);
+      shuffleNextPick = currentEpisodes[pick];
+    }
+    return shuffleNextPick;
+  }
+  if (idx !== -1 && idx < currentEpisodes.length - 1) return currentEpisodes[idx + 1];
+  if (idx !== -1 && loopMode === 'all' && currentEpisodes.length) return currentEpisodes[0];
+  return q[0] || null;
+}
+
+// Précharge en mémoire le morceau B2 suivant pendant l'écoute du morceau courant
+function preloadNextB2() {
+  const next = peekNextEpisode();
+  if (!next || next.type === 'video') return;
+  if (!next.isB2 && isB2Url(next.url)) next.isB2 = true;
+  if (!next.isB2 || offlineKeys.has(next.driveId || next.url)) return;
+  pruneB2Cache([activeEpisode?.url, next.url]);
+  getB2Blob(next);
+}
+
+// Enchaîne sur le morceau suivant (file d'attente ou liste). Renvoie false s'il n'y a rien après.
+function advanceToNext() {
+  if (playingFromQueue) {
+    // On suivait la file : on continue avec la file, puis on bascule sur la liste courante
+    const queued = getNextFromQueue();
+    if (queued) {
+      playEpisode(queued, null, true);
+      if (currentView?.type === 'queue') showQueue();
+      return true;
+    }
+    return playNext(); // file vide : on reprend la liste affichée
+  }
+  // On suivait un dossier/liste : on continue dans le dossier en priorité
+  const hasNextInList = !shuffleMode && getCurrentIndex() !== -1 && getCurrentIndex() < currentEpisodes.length - 1;
+  if (hasNextInList || shuffleMode || loopMode === 'all') return playNext();
+  // Dossier épuisé : la file d'attente prend le relais
+  const queued = getNextFromQueue();
+  if (queued) {
+    playEpisode(queued, null, true);
+    if (currentView?.type === 'queue') showQueue();
+    return true;
+  }
+  return false;
+}
+
+// Morceau définitivement injouable : on passe au suivant, sauf si 3 échecs d'affilée (blocage réseau probable)
+function trackFailed(ep, code) {
+  consecutiveFails++;
+  if (consecutiveFails >= 3) {
+    consecutiveFails = 0;
+    setPlayerStatus('⚠ RÉSEAU', 'idle', 'var(--red)');
+    showPlaybackBlockedNotice(ep);
+    return;
+  }
+  toast('⏭ Morceau ignoré : ' + ep.title);
+  setPlayerStatus('⏭ IGNORÉ', 'idle', 'var(--red)');
+  if (!advanceToNext()) setPlayerStatus('⚠ ' + code, 'idle', 'var(--red)');
+}
+
+// Encadré affiché après 3 échecs d'affilée : proposition VPN + nouvel essai
+function showPlaybackBlockedNotice(ep) {
+  let box = document.getElementById('playback-blocked');
+  if (box) box.remove();
+  box = document.createElement('div');
+  box.id = 'playback-blocked';
+  box.style.cssText = 'position:fixed;left:50%;bottom:110px;transform:translateX(-50%);width:min(92vw,420px);background:var(--bg4);color:var(--text2);border:1px solid var(--border);border-radius:12px;padding:14px;font-size:13px;line-height:1.6;z-index:10000;box-shadow:0 6px 18px rgba(0,0,0,0.5);';
+  box.innerHTML = `<div style="color:var(--red);font-weight:600;margin-bottom:6px;">⚠ 3 morceaux n'ont pas pu être chargés</div>
+    🔒 Connexion probablement bloquée (LaLiga, jours de match).<br>
+    Active ton VPN, ou passe sur ta SIM française.
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn-cancel" style="font-size:13px;padding:8px 12px;" id="pb-vpn">🛡 Ouvrir Proton VPN</button>
+      <button class="btn-cancel" style="font-size:13px;padding:8px 12px;" id="pb-retry">↻ Réessayer</button>
+      <button class="btn-cancel" style="font-size:13px;padding:8px 12px;" id="pb-close">✕</button>
+    </div>`;
+  document.body.appendChild(box);
+  box.querySelector('#pb-vpn').onclick = () => openProtonVPN();
+  box.querySelector('#pb-retry').onclick = () => { box.remove(); consecutiveFails = 0; playEpisode(ep, findEpisodeElement(ep), playingFromQueue); };
+  box.querySelector('#pb-close').onclick = () => box.remove();
+}
+
+// Garde-fou anti-blocage : lecture figée plus de 12 s alors qu'elle devrait avancer → relance
+const STALL_LIMIT = 12000;
+var _wdTime = -1, _wdSince = 0, _wdProgress = 0;
+setInterval(() => {
+  const m = activeMedia, cur = currentPlayback;
+  if (!cur || cur.token !== playToken || !activeEpisode || activeEpisode.isRadio || !cur.started || m.paused || m.ended) {
+    _wdSince = Date.now(); _wdTime = m ? m.currentTime : -1;
+    return;
+  }
+  if (m.currentTime !== _wdTime) {
+    // La lecture avance
+    if (_wdTime >= 0) _wdProgress += Math.max(0, m.currentTime - _wdTime);
+    _wdTime = m.currentTime; _wdSince = Date.now();
+    if (m.currentTime > 3) consecutiveFails = 0;
+    // 30 s d'écoute sans souci après une relance : on redonne un crédit complet de relances
+    if (cur.retries && _wdProgress > 30) { cur.retries = 0; _wdProgress = 0; }
+    return;
+  }
+  if (Date.now() - _wdSince > STALL_LIMIT) {
+    _wdSince = Date.now(); _wdProgress = 0;
+    if (typeof cur.stalled === 'function') cur.stalled();
+  }
+}, 2000);
 
 // Événements communs aux deux lecteurs
 [audio, video].forEach(m => {
@@ -2550,30 +2832,7 @@ async function playEpisode(ep, el, fromQueue = false) {
       return;
     }
     if (loopMode === 'one') { m.currentTime = 0; m.play(); return; }
-
-    if (playingFromQueue) {
-      // On suivait la file : on continue avec la file, puis on bascule sur la liste courante
-      const queued = getNextFromQueue();
-      if (queued) {
-        playEpisode(queued, null, true);
-        if (currentView?.type === 'queue') showQueue();
-        return;
-      }
-      playNext(); // file vide : on reprend la liste affichée
-    } else {
-      // On suivait un dossier/liste : on continue dans le dossier en priorité
-      const hasNextInList = !shuffleMode && getCurrentIndex() !== -1 && getCurrentIndex() < currentEpisodes.length - 1;
-      if (hasNextInList || shuffleMode || loopMode === 'all') {
-        playNext();
-        return;
-      }
-      // Dossier épuisé : la file d'attente prend le relais
-      const queued = getNextFromQueue();
-      if (queued) {
-        playEpisode(queued, null, true);
-        if (currentView?.type === 'queue') showQueue();
-      }
-    }
+    advanceToNext();
   });
   m.addEventListener('error', async () => {
     if (m !== activeMedia || !activeEpisode) return;
@@ -2620,10 +2879,14 @@ function getCurrentIndex() {
 }
 
 function playNext() {
-  if (!currentEpisodes.length) return;
+  if (!currentEpisodes.length) return false;
   const idx = getCurrentIndex();
   let next;
-  if (shuffleMode) {
+  if (shuffleMode && shuffleNextPick && shuffleNextPick.url !== activeEpisode?.url
+      && currentEpisodes.some(e => e.url === shuffleNextPick.url)) {
+    // Morceau déjà choisi (et préchargé) à l'avance
+    next = shuffleNextPick;
+  } else if (shuffleMode) {
     // Si l'épisode courant n'est pas dans la liste, on évite quand même de le reprendre
     let pick;
     do { pick = Math.floor(Math.random() * currentEpisodes.length); }
@@ -2632,13 +2895,15 @@ function playNext() {
   } else {
     if (idx === -1) {
       // Épisode courant absent de la liste affichée : rien à enchaîner, on s'arrête proprement
-      return;
+      return false;
     }
     else if (idx < currentEpisodes.length - 1) next = currentEpisodes[idx + 1];
     else if (loopMode === 'all') next = currentEpisodes[0]; // boucle liste
-    else return;
+    else return false;
   }
+  shuffleNextPick = null;
   playEpisode(next, findEpisodeElement(next));
+  return true;
 }
 
 function playPrevious() {
