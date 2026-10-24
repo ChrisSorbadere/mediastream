@@ -336,6 +336,72 @@
 
 <script>
 // ═══════════════════════════════════════════
+// STOCKAGE PARTAGÉ : chrissorbadere.github.io héberge plusieurs applications
+// qui partagent le même localStorage. Toutes les clés de MediaStream sont
+// préfixées par "mediastream." ; on ne touche jamais aux clés des autres applis.
+// ═══════════════════════════════════════════
+const MS_PREFIX = 'mediastream.';
+const MS_LEGACY_PREFIX = 'mediastream_'; // ancien préfixe (avant le 24/10/2026)
+
+// Migration unique : recopie les anciennes clés "mediastream_xxx" sous "mediastream.xxx",
+// puis supprime les anciennes. Seules NOS clés (préfixe mediastream_) sont concernées.
+(function migrateStorageKeys() {
+  try {
+    const old = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(MS_LEGACY_PREFIX)) old.push(k);
+    }
+    if (!old.length) return;
+    const isSnap = k => k.startsWith(MS_LEGACY_PREFIX + 'snapshot');
+    // Données utiles d'abord, instantanés de secours en dernier (ils sont recréés chaque jour)
+    old.sort((a, b) => isSnap(a) - isSnap(b));
+    const renameKey = k => MS_PREFIX + k.slice(MS_LEGACY_PREFIX.length);
+    for (const k of old) {
+      let v = localStorage.getItem(k);
+      if (v === null) continue;
+      if (isSnap(k)) {
+        // Les instantanés contiennent eux-mêmes des noms de clés : on les renomme aussi
+        try {
+          const snap = JSON.parse(v);
+          if (snap && snap.data) {
+            const data = {};
+            Object.keys(snap.data).forEach(dk => { data[dk.startsWith(MS_LEGACY_PREFIX) ? renameKey(dk) : dk] = snap.data[dk]; });
+            snap.data = data;
+            v = JSON.stringify(snap);
+          }
+        } catch(e) {}
+      }
+      const nk = renameKey(k);
+      try {
+        if (localStorage.getItem(nk) === null) localStorage.setItem(nk, v);
+        localStorage.removeItem(k); // une clé à la fois : évite de doubler l'espace occupé
+      } catch(e) {
+        // Stockage plein : on sacrifie les anciens instantanés de secours et on réessaie une fois
+        old.filter(isSnap).forEach(sk => { try { localStorage.removeItem(sk); } catch(_) {} });
+        try { if (localStorage.getItem(nk) === null) localStorage.setItem(nk, v); localStorage.removeItem(k); } catch(_) {}
+      }
+    }
+  } catch(e) { /* stockage indisponible : l'app démarre quand même */ }
+})();
+
+// Efface UNIQUEMENT les données de MediaStream (jamais localStorage.clear(), qui viderait les autres applis)
+function clearMediaStreamStorage() {
+  const mine = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && (k.startsWith(MS_PREFIX) || k.startsWith(MS_LEGACY_PREFIX))) mine.push(k);
+  }
+  mine.forEach(k => { try { localStorage.removeItem(k); } catch(e) {} });
+}
+
+// Adresse de MediaStream (https://chrissorbadere.github.io/mediastream/) : sert à ne viser
+// que NOS service workers, jamais ceux des autres applications du même site
+const MS_SCOPE = new URL('./', location.href).href;
+function isOwnServiceWorker(reg) {
+  return !!(reg && reg.scope && reg.scope.startsWith(MS_SCOPE));
+}
+// ═══════════════════════════════════════════
 // CONFIGURATION
 // ═══════════════════════════════════════════
 const PROXY = 'https://media-proxy.chrissorbadere.workers.dev/?url=';
@@ -346,11 +412,11 @@ const PROXY = 'https://media-proxy.chrissorbadere.workers.dev/?url=';
 
 
 
-const STORAGE_KEY = 'mediastream_data_v2';
-const POSITION_KEY = 'mediastream_positions_v2';
-const HISTORY_KEY = 'mediastream_history_v2';
-const QUEUE_KEY = 'mediastream_queue_v1';
-const DELETED_FEEDS_KEY = 'mediastream_deleted_feeds_v1'; // URLs des podcasts par défaut supprimés volontairement
+const STORAGE_KEY = 'mediastream.data_v2';
+const POSITION_KEY = 'mediastream.positions_v2';
+const HISTORY_KEY = 'mediastream.history_v2';
+const QUEUE_KEY = 'mediastream.queue_v1';
+const DELETED_FEEDS_KEY = 'mediastream.deleted_feeds_v1'; // URLs des podcasts par défaut supprimés volontairement
 
 const DEFAULT_FOLDERS = [
   {
@@ -493,7 +559,7 @@ function getPositions() {
 }
 
 // ─── Épisodes terminés (badge ✓ Lu fiable) ───
-const FINISHED_KEY = 'mediastream_finished_v1';
+const FINISHED_KEY = 'mediastream.finished_v1';
 let _finishedSet = null;
 function getFinishedSet() {
   if (_finishedSet) return _finishedSet;
@@ -513,7 +579,7 @@ function markFinished(url) {
 }
 
 // ─── Réglages de l'app (durée des sauts ⏪⏩, etc.) ───
-const SETTINGS_KEY = 'mediastream_settings_v1';
+const SETTINGS_KEY = 'mediastream.settings_v1';
 function getAppSettings() {
   try { return Object.assign({ seekBack: 10, seekFwd: 10 }, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); }
   catch(e) { return { seekBack: 10, seekFwd: 10 }; }
@@ -1342,7 +1408,7 @@ async function radioFetch(pathAndQuery) {
   }
   throw new Error('Serveurs radio injoignables');
 }
-const RADIO_FAVORITES_KEY = 'mediastream_radio_fav_v2';
+const RADIO_FAVORITES_KEY = 'mediastream.radio_fav_v2';
 let radioFilters = { country: 'France', tag: '', name: '' };
 let radioCountries = null; // cache : [{name, stationcount}]
 let radioTags = null;      // cache : [{name, stationcount}]
@@ -2249,7 +2315,7 @@ function selectB2(idx) {
   document.getElementById('content-title').textContent = '▶️ ' + d.name;
   document.getElementById('btn-add-feed').style.display = 'none';
   document.getElementById('btn-reset-read').style.display = 'inline-block';
-  loadB2Folder(d, idx);
+  return loadB2Folder(d, idx);
 }
 
 const b2FolderCache = {};
@@ -2444,24 +2510,15 @@ async function playEpisode(ep, el, fromQueue = false) {
   } else if (ep.isRadio) {
     activeMedia.src = ep.url; // radio en direct
   } else if (ep.isB2 && !isVideo) {
-    // Morceau B2 : téléchargement COMPLET en mémoire avant lecture (reprise automatique
-    // en cas de coupure). Les gros fichiers (> B2_MAX_BLOB) passent en streaming classique.
-    pruneB2Cache([ep.url]);
-    // Coupe le morceau précédent pendant le téléchargement
-    try { activeMedia.pause(); activeMedia.removeAttribute('src'); activeMedia.load(); } catch(e) {}
-    setPlayerStatus('⋯ TÉLÉCHARGE');
-    const entry = getB2Blob(ep);
-    entry.onProgress = (r, t) => {
-      if (token === playToken && t) setPlayerStatus('⋯ ' + Math.min(99, Math.round(r / t * 100)) + ' %');
-    };
-    try {
-      await entry.promise;
-      if (token !== playToken) return;
-      activeMedia.src = entry.objUrl;
+    // Morceau B2 : si le préchargement l'a déjà entièrement mis en mémoire, lecture sans réseau
+    // (aucune coupure possible). Sinon, streaming IMMÉDIAT : on n'attend jamais un téléchargement,
+    // car un silence de plusieurs secondes écran éteint pousse Android/Brave à geler ou fermer l'app.
+    const ready = b2BlobCache.get(ep.url);
+    if (ready && ready.objUrl) {
+      activeMedia.src = ready.objUrl;
       playedFromMemory = true;
-    } catch(e) {
-      if (token !== playToken) return;
-      // Trop gros ou téléchargement impossible : streaming classique (avec relances)
+    } else {
+      pruneB2Cache([]); // préchargement inachevé : on l'abandonne pour libérer la bande passante
       activeMedia.src = ep.url;
       activeMedia.load();
     }
@@ -2478,6 +2535,11 @@ async function playEpisode(ep, el, fromQueue = false) {
   const isMusic = ep.isB2 || ep.isDrive;   // la musique passe au morceau suivant en cas d'échec
   const cur = { token, ep, retries: 0, started: false, resumeAt: 0, fromMemory: playedFromMemory };
   currentPlayback = cur;
+  // Reprise après fermeture forcée : position mémorisée
+  if (_pendingResume && _pendingResume.url === ep.url) cur.resumeAt = _pendingResume.pos;
+  _pendingResume = null;
+  // Supprime l'éventuel encadré de reprise
+  const _rk = document.getElementById('resume-after-kill'); if (_rk) _rk.remove();
 
   const seekTo = (pos) => {
     const apply = () => {
@@ -2512,11 +2574,8 @@ async function playEpisode(ep, el, fromQueue = false) {
       }
     }
     activeMedia.play().catch(e => console.warn('Lecture refusée:', e));
-    // Précharge le morceau suivant pendant l'écoute (uniquement si le morceau courant est en mémoire,
-    // pour ne pas partager la bande passante avec un streaming en cours)
-    if (cur.fromMemory || playedFromOffline) {
-      setTimeout(() => { if (token === playToken) preloadNextB2(); }, 3000);
-    }
+    // Précharge le morceau suivant pendant l'écoute (laisse d'abord 15 s au morceau courant pour démarrer)
+    setTimeout(() => { if (token === playToken && !activeMedia.paused) preloadNextB2(); }, 15000);
   };
   const attachStart = () => {
     activeMedia.addEventListener('loadedmetadata', onceLoaded, { once: true });
@@ -2574,7 +2633,7 @@ var playToken = 0;           // incrémenté à chaque lecture : invalide les é
 var currentPlayback = null;  // état de la lecture en cours (relances, reprise…)
 var consecutiveFails = 0;    // morceaux ratés d'affilée (3 = blocage réseau probable)
 var shuffleNextPick = null;  // en aléatoire : morceau suivant choisi d'avance (pour le préchargement)
-const B2_MAX_BLOB = 30 * 1024 * 1024; // au-delà (~12 min en 320 kb/s) : streaming classique
+const B2_MAX_BLOB = 20 * 1024 * 1024; // au-delà (~8 min en 320 kb/s) : pas de préchargement, streaming classique
 var b2BlobCache = new Map();          // url → { promise, objUrl, ctrl, onProgress }
 
 function setPlayerStatus(text, cls, color) {
@@ -3354,9 +3413,9 @@ function showSettingsModal() {
     <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="restoreSnapshot('today')">↩ Restaurer l'état de ce matin</button>
     <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="restoreSnapshot('prev')">↩ Restaurer l'état d'hier</button>
     <button class="btn-cancel" style="width:100%;margin-bottom:8px;" onclick="if(confirm('Vider l\\'historique ?')){localStorage.removeItem(HISTORY_KEY);location.reload();}">🗑 Vider l'historique</button>
-    <button class="btn-danger" style="width:100%;" onclick="if(confirm('Tout réinitialiser ?')){localStorage.clear();location.reload();}">⚠ Tout réinitialiser</button>
+    <button class="btn-danger" style="width:100%;" onclick="if(confirm('Tout réinitialiser ?')){clearMediaStreamStorage();location.reload();}">⚠ Tout réinitialiser</button>
     <div class="modal-label" style="margin-top:14px;">À propos</div>
-    <div style="font-size:11px;color:var(--text3);font-family:var(--font-mono);line-height:1.6;">MediaStream v2.1<br>Proxy : Cloudflare Workers<br>© Christophe Soulas, 2026</div>`;
+    <div style="font-size:11px;color:var(--text3);font-family:var(--font-mono);line-height:1.6;">MediaStream v2.3<br>Proxy : Cloudflare Workers<br>© Christophe Soulas, 2026</div>`;
   document.getElementById('modal-actions').innerHTML = `<button class="btn-cancel" onclick="closeModal()">Fermer</button>`;
   document.getElementById('modal').style.display = 'flex';
   refreshStorageInfo();
@@ -3400,27 +3459,27 @@ function closeModalOutside(e) { if (e.target.id === 'modal') closeModal(); }
 async function clearAppCache() {
   if (!confirm('Vider le cache de l\'application ?\n\nCela supprime les fichiers temporaires et force le rechargement de la dernière version, SANS toucher à tes podcasts, dossiers, positions ni historique.')) return;
   try {
-    // 1) Supprime tous les caches (Cache Storage API) — fichiers de l'app, anciens catalogues, etc.
+    // 1) Supprime NOS caches uniquement (nommés "mediastream-…") : ceux des autres applis du site restent intacts
     if ('caches' in window) {
       const names = await caches.keys();
-      await Promise.all(names.map(n => caches.delete(n)));
+      await Promise.all(names.filter(n => n.startsWith('mediastream-')).map(n => caches.delete(n)));
     }
-    // 2) Désinscrit les Service Workers (force le rechargement du code à jour)
+    // 2) Désinscrit NOS service workers uniquement (ceux de /mediastream/)
     if ('serviceWorker' in navigator) {
       const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map(r => r.unregister()));
+      await Promise.all(regs.filter(isOwnServiceWorker).map(r => r.unregister()));
     }
     // 3) Nettoie les anciennes clés résiduelles dans localStorage (sans toucher aux données utiles)
     const keysToClean = [
-      'mediastream_audiobook_cache_v1',
-      'mediastream_audiobook_preload_progress_v1',
-      'mediastream_audiobook_preload_progress_v2',
+      'mediastream.audiobook_cache_v1',
+      'mediastream.audiobook_preload_progress_v1',
+      'mediastream.audiobook_preload_progress_v2',
     ];
     keysToClean.forEach(k => { try { localStorage.removeItem(k); } catch(e) {} });
     // On nettoie aussi toute clé de cache audio-livres versionnée
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const key = localStorage.key(i);
-      if (key && key.startsWith('mediastream_audiobook_cache')) {
+      if (key && key.startsWith('mediastream.audiobook_cache')) {
         try { localStorage.removeItem(key); } catch(e) {}
       }
     }
@@ -3982,8 +4041,8 @@ async function openFolderAndPlay(folderInfo) {
 // INIT
 // ═══════════════════════════════════════════
 // Nettoie les anciennes versions du pré-chargement qui pouvaient saturer localStorage
-try { localStorage.removeItem('mediastream_audiobook_preload_progress_v1'); } catch(e) {}
-try { localStorage.removeItem('mediastream_audiobook_preload_progress_v2'); } catch(e) {}
+try { localStorage.removeItem('mediastream.audiobook_preload_progress_v1'); } catch(e) {}
+try { localStorage.removeItem('mediastream.audiobook_preload_progress_v2'); } catch(e) {}
 
 loadData();
 // Initialise le filet de sécurité de la file d'attente avec la vraie valeur du stockage
@@ -3999,8 +4058,8 @@ showRecents();
 // ─── Sauvegarde de secours automatique ───
 // À chaque ouverture, un instantané quotidien de toutes les données est conservé
 // (celui du jour + celui de la veille), restaurable depuis les Paramètres.
-const SNAPSHOT_TODAY_KEY = 'mediastream_snapshot_today';
-const SNAPSHOT_PREV_KEY = 'mediastream_snapshot_prev';
+const SNAPSHOT_TODAY_KEY = 'mediastream.snapshot_today';
+const SNAPSHOT_PREV_KEY = 'mediastream.snapshot_prev';
 const SNAPSHOT_KEYS = [STORAGE_KEY, POSITION_KEY, HISTORY_KEY, QUEUE_KEY, DELETED_FEEDS_KEY, RADIO_FAVORITES_KEY, FINISHED_KEY, SETTINGS_KEY];
 
 function takeStartupSnapshot() {
@@ -4028,12 +4087,12 @@ function restoreSnapshot(which) {
   } catch(e) { alert('Restauration impossible : ' + e.message); }
 }
 takeStartupSnapshot();
-// L'app n'utilise AUCUN service worker. S'il en reste un d'une ancienne version,
+// L'app n'utilise AUCUN service worker. S'il en reste un d'une ancienne version de MediaStream,
 // il peut intercepter et casser le streaming audio (échecs qui s'aggravent au fil de la session).
 // On le désinscrit silencieusement.
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations()
-    .then(regs => regs.forEach(r => r.unregister()))
+    .then(regs => regs.filter(isOwnServiceWorker).forEach(r => r.unregister())) // jamais ceux des autres applis
     .catch(() => {});
 }
 // ─── Balayages latéraux : glisser vers la droite = menu gauche, vers la gauche = 🎵 Ma musique ───
@@ -4065,7 +4124,110 @@ if ('serviceWorker' in navigator) {
 })();
 
 // Mode hors-ligne : charge la liste des fichiers enregistrés, puis rafraîchit la vue initiale
-loadOfflineKeys().then(() => { if (currentView?.type === 'recents') showRecents(); renderSidebar(); });
+loadOfflineKeys().then(() => { if (currentView?.type === 'recents') showRecents(); renderSidebar(); setTimeout(offerResumeAfterKill, 600); });
+
+// ═══════════════════════════════════════════
+// REPRISE APRÈS FERMETURE FORCÉE (Android/ColorOS peut tuer Brave en arrière-plan)
+// ═══════════════════════════════════════════
+const LASTPLAY_KEY = 'mediastream.lastplay_v1';
+var _pendingResume = null; // { url, pos } : position à appliquer au prochain playEpisode de ce morceau
+let _lpLastWrite = 0;
+
+function saveLastPlay(playing) {
+  const ep = activeEpisode;
+  if (!ep || !ep.url) return;
+  try {
+    const light = { title: ep.title, url: ep.url, feed: ep.feed || '', type: ep.type || '', image: ep.image || '',
+      isB2: !!ep.isB2, isDrive: !!ep.isDrive, driveId: ep.driveId || '', isRadio: !!ep.isRadio, folderName: ep.folderName || '' };
+    localStorage.setItem(LASTPLAY_KEY, JSON.stringify({
+      ep: light, pos: ep.isRadio ? 0 : (activeMedia.currentTime || 0),
+      playing, fromQueue: !!playingFromQueue, at: Date.now(),
+    }));
+    _lpLastWrite = Date.now();
+  } catch(e) {}
+}
+
+[audio, video].forEach(m => {
+  // Pendant la lecture : instantané toutes les 5 s (dernier état connu si l'app est tuée)
+  m.addEventListener('timeupdate', () => {
+    if (m !== activeMedia || m.paused || Date.now() - _lpLastWrite < 5000) return;
+    saveLastPlay(true);
+  });
+  m.addEventListener('playing', () => { if (m === activeMedia) saveLastPlay(true); });
+  // Pause volontaire (encore en pause 2 s après) : pas de reprise à proposer
+  m.addEventListener('pause', () => {
+    if (m !== activeMedia) return;
+    setTimeout(() => {
+      // Pas pendant une relance automatique (le lecteur est momentanément en pause)
+      if (m === activeMedia && m.paused && currentPlayback && currentPlayback.started) saveLastPlay(false);
+    }, 2000);
+  });
+});
+// Passage en arrière-plan : on enregistre tout de suite
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden' && activeEpisode) saveLastPlay(!activeMedia.paused);
+});
+
+// Au démarrage : si la lecture tournait encore quand l'app a été fermée, on propose de reprendre
+function offerResumeAfterKill() {
+  let rec = null;
+  try { rec = JSON.parse(localStorage.getItem(LASTPLAY_KEY) || 'null'); } catch(e) {}
+  if (!rec || !rec.ep || !rec.playing || Date.now() - rec.at > 12 * 3600 * 1000) return;
+  if (activeEpisode) return; // une lecture a déjà été lancée
+  const fmt = s => { s = Math.floor(s || 0); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+  const box = document.createElement('div');
+  box.id = 'resume-after-kill';
+  box.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);width:min(92vw,420px);background:var(--bg4);color:var(--text);border:1px solid var(--border);border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.5;z-index:10000;box-shadow:0 6px 18px rgba(0,0,0,0.5);';
+  box.innerHTML = `<div style="color:var(--text2);margin-bottom:4px;">La lecture a été interrompue</div>
+    <div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHTML(rec.ep.title || '')}${rec.ep.isRadio ? '' : ' · ' + fmt(rec.pos)}</div>
+    <div style="margin-top:10px;display:flex;gap:8px;">
+      <button class="btn-cancel" style="font-size:13px;padding:8px 14px;" id="rk-play">▶ Reprendre</button>
+      <button class="btn-cancel" style="font-size:13px;padding:8px 12px;" id="rk-close">✕</button>
+    </div>`;
+  document.body.appendChild(box);
+  box.querySelector('#rk-close').onclick = () => {
+    box.remove();
+    try { rec.playing = false; localStorage.setItem(LASTPLAY_KEY, JSON.stringify(rec)); } catch(e) {}
+  };
+  box.querySelector('#rk-play').onclick = async () => {
+    box.remove();
+    const ep = rec.ep;
+    // Morceau B2 : on rouvre son dossier pour que l'enchaînement continue après ce morceau
+    if (ep.isB2 && ep.folderName && !rec.fromQueue) {
+      const idx = b2Folders.findIndex(f => f.name === ep.folderName);
+      if (idx !== -1) { try { await selectB2(idx); } catch(e) {} }
+    }
+    if (!ep.isRadio && rec.pos > 1) _pendingResume = { url: ep.url, pos: rec.pos };
+    playEpisode(ep, findEpisodeElement(ep), rec.fromQueue);
+  };
+}
+
+// ═══════════════════════════════════════════
+// GESTE / BOUTON « RETOUR » D'ANDROID
+// ═══════════════════════════════════════════
+// Sans historique, le premier « retour » ferme la PWA. Or le geste retour (glisser depuis le bord)
+// ressemble aux balayages de l'app. On intercepte : retour = fermer le panneau ouvert ;
+// sans panneau, il faut faire « retour » deux fois de suite pour quitter.
+(function setupBackGuard() {
+  let lastBack = 0;
+  const arm = () => { try { history.pushState({ msGuard: true }, ''); } catch(e) {} };
+  try { if (!history.state || !history.state.msGuard) arm(); } catch(e) {}
+  window.addEventListener('popstate', () => {
+    const modal = document.getElementById('modal');
+    const sb = document.getElementById('sidebar');
+    const sbd = document.getElementById('sidebar-drive');
+    const bg = document.getElementById('overlay-bg');
+    if (modal && modal.style.display !== 'none') { closeModal(); arm(); return; }
+    if (sb?.classList.contains('open') || sbd?.classList.contains('open')) {
+      sb?.classList.remove('open'); sbd?.classList.remove('open'); bg?.classList.remove('visible');
+      arm(); return;
+    }
+    if (Date.now() - lastBack < 2500) { history.back(); return; } // 2e retour rapproché : on laisse quitter
+    lastBack = Date.now();
+    toast('Refais « retour » pour quitter');
+    arm();
+  });
+})();
 // Demande au navigateur de NE PAS purger nos fichiers hors-ligne si l'espace vient à manquer
 try { navigator.storage?.persist?.(); } catch(e) {}
 
